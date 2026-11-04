@@ -1,4 +1,4 @@
-$Version = '1.4.0'
+$Version = '1.4.5'
 $Repo = 'Trincass/deep'
 $Branch = 'main'
 $FiveMBranch = 'fivem'
@@ -1154,14 +1154,14 @@ $debloatClear.Size = New-Object Drawing.Size(136, 30)
 $debloatPanel.Controls.Add($debloatClear)
 $script:DebloatOnlyInstalled = New-Object Windows.Forms.CheckBox
 $script:DebloatOnlyInstalled.Text = 'Only show installed apps'
-$script:DebloatOnlyInstalled.Location = New-Object Drawing.Point(585, 6)
+$script:DebloatOnlyInstalled.Location = New-Object Drawing.Point(585, 6); $script:DebloatOnlyInstalled.Anchor = 'Top,Right'
 $script:DebloatOnlyInstalled.Size = New-Object Drawing.Size(205, 28)
 $script:DebloatOnlyInstalled.ForeColor = [Drawing.Color]::White
 $script:DebloatOnlyInstalled.BackColor = [Drawing.Color]::Black
 $debloatPanel.Controls.Add($script:DebloatOnlyInstalled)
 $script:DebloatSearch = New-Object Windows.Forms.TextBox
 $script:DebloatSearch.Text = 'Search apps...'
-$script:DebloatSearch.Location = New-Object Drawing.Point(906, 5)
+$script:DebloatSearch.Location = New-Object Drawing.Point(906, 5); $script:DebloatSearch.Anchor = 'Top,Right'
 $script:DebloatSearch.Size = New-Object Drawing.Size(270, 30)
 $script:DebloatSearch.BackColor = [Drawing.Color]::FromArgb(42, 42, 42)
 $script:DebloatSearch.ForeColor = [Drawing.Color]::White
