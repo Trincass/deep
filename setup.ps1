@@ -1,4 +1,4 @@
-$Version = '1.0.0'
+$Version = '1.1.0'
 $Repo = 'Trincass/deep'
 $Branch = 'main'
 $Raw = "https://raw.githubusercontent.com/$Repo/$Branch/setup.ps1"
@@ -45,52 +45,128 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
-public class FxPanel : Panel
+public static class FxUtil
 {
-    class Particle { public float X, Y, Size, Speed, Phase; }
+    public static Font TitleFont = new Font("Segoe UI Semibold", 11.5f);
+    public static Font DescFont = new Font("Segoe UI", 9.5f);
+    public static Font BtnFont = new Font("Segoe UI Semibold", 10f);
+    public static Font BigFont = new Font("Segoe UI Light", 34f);
+    public static Font SubFont = new Font("Segoe UI", 10f);
+    public static SolidBrush Gray = new SolidBrush(Color.FromArgb(150, 156, 168));
+
+    public static GraphicsPath Round(Rectangle r, int rad)
+    {
+        int d = rad * 2;
+        if (d > r.Height) d = r.Height;
+        if (d > r.Width) d = r.Width;
+        if (d < 1) d = 1;
+        GraphicsPath p = new GraphicsPath();
+        p.AddArc(r.X, r.Y, d, d, 180, 90);
+        p.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+        p.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+        p.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+        p.CloseFigure();
+        return p;
+    }
+}
+
+public class FxForm : Form
+{
+    class Particle { public float X, Y, Size, Speed, Phase; public int Level; }
+    static int[] levels = new int[] { 70, 110, 150, 190, 230 };
+    SolidBrush[] brushes = new SolidBrush[5];
+    Pen[] pens = new Pen[5];
+    Pen line = new Pen(Color.FromArgb(40, 255, 255, 255), 1f);
     List<Particle> list = new List<Particle>();
     Random rnd = new Random();
     Timer timer = new Timer();
     public string Mode = "snow";
     public string Title = "";
     public string Sub = "";
-    public Color Accent = Color.FromArgb(110, 170, 255);
 
-    public FxPanel()
+    [DllImport("dwmapi.dll")]
+    static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int val, int size);
+
+    public FxForm()
     {
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
-        timer.Interval = 33;
-        timer.Tick += delegate { Step(); Invalidate(); };
+        BackColor = Color.Black;
+        ForeColor = Color.White;
+        for (int i = 0; i < 5; i++)
+        {
+            brushes[i] = new SolidBrush(Color.FromArgb(levels[i], 255, 255, 255));
+            pens[i] = new Pen(Color.FromArgb(levels[i] - 20, 255, 255, 255), 1f);
+        }
+        timer.Interval = 40;
+        timer.Tick += delegate
+        {
+            Step();
+            if (Mode != "off" && WindowState != FormWindowState.Minimized) Invalidate(true);
+        };
         timer.Start();
     }
 
-    public void SetMode(string m) { Mode = m; list.Clear(); }
+    protected override CreateParams CreateParams
+    {
+        get
+        {
+            CreateParams cp = base.CreateParams;
+            cp.ExStyle |= 0x02000000;
+            return cp;
+        }
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        int dark = 1;
+        DwmSetWindowAttribute(Handle, 20, ref dark, 4);
+        DwmSetWindowAttribute(Handle, 19, ref dark, 4);
+    }
+
+    public void SetMode(string m)
+    {
+        Mode = m;
+        list.Clear();
+        Invalidate(true);
+    }
 
     Particle Make(bool anywhere)
     {
         Particle p = new Particle();
-        p.X = (float)(rnd.NextDouble() * (Width + 80));
-        p.Y = anywhere ? (float)(rnd.NextDouble() * Height) : -12f;
+        p.X = (float)(rnd.NextDouble() * (ClientSize.Width + 60));
+        p.Y = anywhere ? (float)(rnd.NextDouble() * ClientSize.Height) : -20f;
         p.Phase = (float)(rnd.NextDouble() * 100);
-        if (Mode == "snow") { p.Size = 1.5f + (float)rnd.NextDouble() * 3f; p.Speed = 0.6f + p.Size * 0.45f; }
-        else { p.Size = 8f + (float)rnd.NextDouble() * 10f; p.Speed = 9f + (float)rnd.NextDouble() * 8f; }
+        if (Mode == "snow")
+        {
+            p.Size = 1.3f + (float)rnd.NextDouble() * 3.4f;
+            p.Speed = 0.5f + p.Size * 0.5f;
+            p.Level = Math.Min(4, (int)((p.Size - 1.3f) / 0.85f));
+        }
+        else
+        {
+            p.Size = 10f + (float)rnd.NextDouble() * 18f;
+            p.Speed = 9f + p.Size * 0.5f;
+            p.Level = Math.Min(4, (int)((p.Size - 10f) / 5.6f));
+        }
         return p;
     }
 
     void Step()
     {
-        if (Width < 10 || Height < 10) return;
-        int target = Mode == "snow" ? 120 : (Mode == "rain" ? 160 : 0);
+        if (ClientSize.Width < 10 || ClientSize.Height < 10) return;
+        int target = Mode == "snow" ? 140 : (Mode == "rain" ? 180 : 0);
         while (list.Count < target) list.Add(Make(true));
         while (list.Count > target) list.RemoveAt(list.Count - 1);
         foreach (Particle p in list)
         {
             p.Y += p.Speed;
-            if (Mode == "snow") p.X += (float)Math.Sin((p.Y + p.Phase) / 28f) * 0.7f;
-            else p.X -= p.Speed * 0.15f;
-            if (p.Y > Height + 10 || p.X < -20 || p.X > Width + 20)
+            if (Mode == "snow") p.X += (float)Math.Sin((p.Y + p.Phase) / 30f) * 0.6f;
+            else p.X -= p.Speed * 0.1f;
+            if (p.Y > ClientSize.Height + 20 || p.X < -30 || p.X > ClientSize.Width + 30)
             {
                 Particle q = Make(false);
                 p.X = q.X;
@@ -101,41 +177,21 @@ public class FxPanel : Panel
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        if (Width < 2 || Height < 2) return;
         Graphics g = e.Graphics;
         g.SmoothingMode = SmoothingMode.AntiAlias;
-        Color c1 = Color.FromArgb(12, 20, 38);
-        Color c2 = Color.FromArgb(34, 58, 96);
-        if (Mode == "rain") { c1 = Color.FromArgb(10, 16, 22); c2 = Color.FromArgb(24, 44, 56); }
-        if (Mode == "off") { c1 = Color.FromArgb(16, 18, 26); c2 = Color.FromArgb(34, 36, 56); }
-        using (LinearGradientBrush bg = new LinearGradientBrush(ClientRectangle, c1, c2, 90f))
-        {
-            g.FillRectangle(bg, ClientRectangle);
-        }
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
         if (Mode == "snow")
         {
-            using (SolidBrush b = new SolidBrush(Color.FromArgb(200, 255, 255, 255)))
-            {
-                foreach (Particle p in list) g.FillEllipse(b, p.X, p.Y, p.Size, p.Size);
-            }
+            foreach (Particle p in list) g.FillEllipse(brushes[p.Level], p.X, p.Y, p.Size, p.Size);
         }
         else if (Mode == "rain")
         {
-            using (Pen pen = new Pen(Color.FromArgb(120, Accent), 1f))
-            {
-                foreach (Particle p in list) g.DrawLine(pen, p.X, p.Y, p.X + p.Size * 0.2f, p.Y - p.Size);
-            }
+            foreach (Particle p in list) g.DrawLine(pens[p.Level], p.X, p.Y, p.X + p.Size * 0.1f, p.Y - p.Size);
         }
-        using (Font f1 = new Font("Segoe UI Semibold", 30f))
-        using (Font f2 = new Font("Segoe UI", 10.5f))
-        using (SolidBrush tb = new SolidBrush(Color.White))
-        using (SolidBrush sb = new SolidBrush(Color.FromArgb(190, 200, 220)))
-        using (SolidBrush ab = new SolidBrush(Accent))
-        {
-            g.DrawString(Title, f1, tb, 24, 22);
-            g.FillRectangle(ab, 28, 78, 46, 3);
-            g.DrawString(Sub, f2, sb, 26, 90);
-        }
+        g.DrawString(Title, FxUtil.BigFont, Brushes.White, 30, 14);
+        g.DrawString(Sub, FxUtil.SubFont, FxUtil.Gray, 36, 72);
+        g.DrawLine(line, 36, 104, ClientSize.Width - 36, 104);
+        g.DrawLine(line, 36, ClientSize.Height - 172, ClientSize.Width - 36, ClientSize.Height - 172);
     }
 
     protected override void Dispose(bool disposing)
@@ -144,31 +200,220 @@ public class FxPanel : Panel
         base.Dispose(disposing);
     }
 }
+
+public class FxRow : Control
+{
+    public string Title = "";
+    public string Desc = "";
+    bool hover = false;
+    bool chk = false;
+
+    public bool Checked
+    {
+        get { return chk; }
+        set { chk = value; Invalidate(); }
+    }
+
+    public FxRow()
+    {
+        SetStyle(ControlStyles.SupportsTransparentBackColor | ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+        BackColor = Color.Transparent;
+        Cursor = Cursors.Hand;
+    }
+
+    protected override void OnMouseEnter(EventArgs e)
+    {
+        hover = true;
+        Invalidate();
+        if (Parent != null) Parent.Focus();
+        base.OnMouseEnter(e);
+    }
+
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        hover = false;
+        Invalidate();
+        base.OnMouseLeave(e);
+    }
+
+    protected override void OnClick(EventArgs e)
+    {
+        Checked = !Checked;
+        base.OnClick(e);
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        Graphics g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+        Rectangle r = new Rectangle(0, 0, Width - 1, Height - 1);
+        using (GraphicsPath p = FxUtil.Round(r, 12))
+        {
+            if (hover)
+            {
+                using (SolidBrush b = new SolidBrush(Color.FromArgb(18, 255, 255, 255))) g.FillPath(b, p);
+            }
+            using (Pen pen = new Pen(Color.FromArgb(chk ? 160 : 45, 255, 255, 255), 1f)) g.DrawPath(pen, p);
+        }
+        g.DrawString(Title, FxUtil.TitleFont, Brushes.White, 20, 12);
+        g.DrawString(Desc, FxUtil.DescFont, FxUtil.Gray, new RectangleF(20, 38, Width - 120, Height - 42));
+
+        Rectangle t = new Rectangle(Width - 20 - 44, 14, 44, 22);
+        using (GraphicsPath tp = FxUtil.Round(t, 11))
+        {
+            if (chk)
+            {
+                g.FillPath(Brushes.White, tp);
+                g.FillEllipse(Brushes.Black, t.Right - 19, t.Y + 3, 16, 16);
+            }
+            else
+            {
+                using (Pen pen = new Pen(Color.FromArgb(110, 255, 255, 255), 1f)) g.DrawPath(pen, tp);
+                using (SolidBrush kb = new SolidBrush(Color.FromArgb(150, 255, 255, 255))) g.FillEllipse(kb, t.X + 3, t.Y + 3, 16, 16);
+            }
+        }
+    }
+}
+
+public class FxButton : Control
+{
+    public string Style = "ghost";
+    bool hover = false;
+    bool active = false;
+
+    public bool Active
+    {
+        get { return active; }
+        set { active = value; Invalidate(); }
+    }
+
+    public FxButton()
+    {
+        SetStyle(ControlStyles.SupportsTransparentBackColor | ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.StandardClick, true);
+        BackColor = Color.Transparent;
+        Cursor = Cursors.Hand;
+    }
+
+    protected override void OnTextChanged(EventArgs e) { Invalidate(); base.OnTextChanged(e); }
+    protected override void OnEnabledChanged(EventArgs e) { Invalidate(); base.OnEnabledChanged(e); }
+
+    protected override void OnMouseEnter(EventArgs e)
+    {
+        hover = true;
+        Invalidate();
+        base.OnMouseEnter(e);
+    }
+
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        hover = false;
+        Invalidate();
+        base.OnMouseLeave(e);
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        Graphics g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+        int a = Enabled ? 255 : 80;
+        Rectangle r = new Rectangle(0, 0, Width - 1, Height - 1);
+        Color txt = Color.FromArgb(a, 255, 255, 255);
+        StringFormat sf = new StringFormat();
+        sf.LineAlignment = StringAlignment.Center;
+        sf.Alignment = StringAlignment.Center;
+        RectangleF tr = new RectangleF(0, 0, Width, Height);
+
+        if (Style == "primary")
+        {
+            int v = hover ? 232 : 255;
+            using (GraphicsPath p = FxUtil.Round(r, Height / 2))
+            using (SolidBrush b = new SolidBrush(Color.FromArgb(a, v, v, v))) g.FillPath(b, p);
+            txt = Color.FromArgb(a, 0, 0, 0);
+        }
+        else if (Style == "nav")
+        {
+            sf.Alignment = StringAlignment.Near;
+            tr = new RectangleF(24, 0, Width - 24, Height);
+            if (active || hover)
+            {
+                using (GraphicsPath p = FxUtil.Round(r, 10))
+                using (SolidBrush b = new SolidBrush(Color.FromArgb(active ? 26 : 12, 255, 255, 255))) g.FillPath(b, p);
+            }
+            if (active) g.FillRectangle(Brushes.White, 0, 10, 3, Height - 20);
+            if (!active) txt = Color.FromArgb(a, 160, 165, 175);
+        }
+        else
+        {
+            bool filled = Style == "chip" && active;
+            using (GraphicsPath p = FxUtil.Round(r, Height / 2))
+            {
+                if (filled)
+                {
+                    g.FillPath(Brushes.White, p);
+                    txt = Color.FromArgb(a, 0, 0, 0);
+                }
+                else
+                {
+                    if (hover)
+                    {
+                        using (SolidBrush b = new SolidBrush(Color.FromArgb(24, 255, 255, 255))) g.FillPath(b, p);
+                    }
+                    using (Pen pen = new Pen(Color.FromArgb(Enabled ? 90 : 40, 255, 255, 255), 1f)) g.DrawPath(pen, p);
+                }
+            }
+        }
+        using (SolidBrush tb = new SolidBrush(txt)) g.DrawString(Text, FxUtil.BtnFont, tb, tr, sf);
+        sf.Dispose();
+    }
+}
+
+public class FxProgress : Control
+{
+    int val = 0;
+    int max = 1;
+
+    public int Value
+    {
+        get { return val; }
+        set { val = value; Invalidate(); }
+    }
+
+    public int Maximum
+    {
+        get { return max; }
+        set { max = value < 1 ? 1 : value; Invalidate(); }
+    }
+
+    public FxProgress()
+    {
+        SetStyle(ControlStyles.SupportsTransparentBackColor | ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+        BackColor = Color.Transparent;
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        using (SolidBrush track = new SolidBrush(Color.FromArgb(40, 255, 255, 255))) e.Graphics.FillRectangle(track, 0, 0, Width, Height);
+        int w = (int)((long)Width * val / max);
+        e.Graphics.FillRectangle(Brushes.White, 0, 0, w, Height);
+    }
+}
 '@
-if (-not ('FxPanel' -as [type])) {
+if (-not ('FxForm' -as [type])) {
     Add-Type -ReferencedAssemblies System.Windows.Forms, System.Drawing -TypeDefinition $fxSource
 }
 
-Add-Type -Namespace W -Name U -MemberDefinition '[DllImport("user32.dll")] public static extern bool SystemParametersInfo(int a, int b, int[] c, int d);'
+Add-Type -Namespace W -Name U -MemberDefinition @'
+[DllImport("user32.dll")] public static extern bool SystemParametersInfo(int a, int b, int[] c, int d);
+[DllImport("uxtheme.dll", CharSet = CharSet.Unicode)] public static extern int SetWindowTheme(IntPtr h, string a, string b);
+'@
 
 $Dl = Join-Path (Join-Path $env:USERPROFILE 'Downloads') 'deep'
 $Data = Join-Path $env:ProgramData 'deep'
 New-Item -ItemType Directory -Force $Dl, $Data | Out-Null
 $BackupFile = Join-Path $Data 'backup.json'
 $PlanFile = Join-Path $Data 'powerplan.txt'
-
-function C($r, $g, $b) { [Drawing.Color]::FromArgb($r, $g, $b) }
-$cBg = C 16 18 24
-$cCard = C 24 28 37
-$cActive = C 44 50 66
-$cText = C 232 235 242
-$cMuted = C 142 150 168
-
-$Themes = @{
-    'Snowfall' = @{ Mode = 'snow'; Accent = (C 110 170 255) }
-    'Rainfall' = @{ Mode = 'rain'; Accent = (C 70 190 180) }
-    'Off'      = @{ Mode = 'off'; Accent = (C 120 140 255) }
-}
 
 function Wait-Proc($p) {
     $null = $p.Handle
@@ -456,186 +701,37 @@ function Undo-Tweaks {
     Write-Log 'Tweaks reverted. Removed apps can be reinstalled from the Microsoft Store.'
 }
 
-$form = New-Object Windows.Forms.Form
-$form.Text = "deep v$Version"
-$form.Size = New-Object Drawing.Size(1000, 760)
-$form.MinimumSize = New-Object Drawing.Size(900, 660)
+$Themes = @{ 'Snow' = 'snow'; 'Rain' = 'rain'; 'Off' = 'off' }
+$PrimaryText = @{ Apps = 'Install selected'; Drivers = 'Install drivers'; Tweaks = 'Apply tweaks'; Debloat = 'Remove bloatware' }
+$H = 780
+
+$form = New-Object FxForm
+$form.Text = 'deep'
+$form.ClientSize = New-Object Drawing.Size(1040, $H)
+$form.MinimumSize = $form.Size
 $form.StartPosition = 'CenterScreen'
-$form.BackColor = $cBg
-$form.ForeColor = $cText
 $form.Font = New-Object Drawing.Font('Segoe UI', 9.5)
-
-$header = New-Object FxPanel
-$header.Dock = 'Top'
-$header.Height = 140
-$header.Title = 'deep'
-$header.Sub = "Windows 10 / 11 post-install setup   |   v$Version"
-
-$nav = New-Object Windows.Forms.Panel
-$nav.Dock = 'Left'
-$nav.Width = 170
-$nav.BackColor = $cCard
-
-$content = New-Object Windows.Forms.Panel
-$content.Dock = 'Fill'
-$content.BackColor = $cBg
-
-$bottom = New-Object Windows.Forms.Panel
-$bottom.Dock = 'Bottom'
-$bottom.Height = 200
-$bottom.BackColor = $cCard
+$form.Title = 'deep'
+$form.Sub = "Windows 10 / 11 post-install setup   |   v$Version"
 
 $Checks = @{}
 $TabKeys = @{ Apps = @(); Drivers = @(); Tweaks = @(); Debloat = @() }
 $Flows = @{}
 $NavBtns = @{}
+$ChipBtns = @{}
+$script:CurrentTab = 'Apps'
+$script:Busy = $false
 
-$i = 0
-foreach ($n in 'Apps', 'Drivers', 'Tweaks', 'Debloat') {
-    $f = New-Object Windows.Forms.FlowLayoutPanel
-    $f.Dock = 'Fill'
-    $f.FlowDirection = 'TopDown'
-    $f.WrapContents = $false
-    $f.AutoScroll = $true
-    $f.Padding = New-Object Windows.Forms.Padding(10, 8, 10, 8)
-    $f.BackColor = $cBg
-    $f.Visible = $false
-    $content.Controls.Add($f)
-    $Flows[$n] = $f
-
-    $b = New-Object Windows.Forms.Button
-    $b.Text = "   $n"
-    $b.TextAlign = 'MiddleLeft'
-    $b.FlatStyle = 'Flat'
-    $b.FlatAppearance.BorderSize = 0
-    $b.BackColor = $cCard
-    $b.ForeColor = $cText
-    $b.Font = New-Object Drawing.Font('Segoe UI Semibold', 11)
-    $b.Size = New-Object Drawing.Size(170, 48)
-    $b.Location = New-Object Drawing.Point(0, (14 + $i * 52))
-    $b.Cursor = 'Hand'
-    $name = $n
-    $b.Add_Click({ Show-Tab $name }.GetNewClosure())
-    $nav.Controls.Add($b)
-    $NavBtns[$n] = $b
-    $i++
-}
-
-function Add-Row($tab, $key, $title, $desc, $on, $height = 66) {
-    $row = New-Object Windows.Forms.Panel
-    $row.Size = New-Object Drawing.Size(700, $height)
-    $row.BackColor = $cCard
-    $row.Margin = New-Object Windows.Forms.Padding(4, 4, 4, 4)
-
-    $cb = New-Object Windows.Forms.CheckBox
-    $cb.Text = $title
-    $cb.Font = New-Object Drawing.Font('Segoe UI Semibold', 10.5)
-    $cb.AutoSize = $true
-    $cb.Checked = $on
-    $cb.ForeColor = $cText
-    $cb.Location = New-Object Drawing.Point(12, 8)
-
-    $lb = New-Object Windows.Forms.Label
-    $lb.Text = $desc
-    $lb.ForeColor = $cMuted
-    $lb.Location = New-Object Drawing.Point(34, 34)
-    $lb.Size = New-Object Drawing.Size(650, ($height - 38))
-    $lb.Add_Click({ $cb.Checked = -not $cb.Checked }.GetNewClosure())
-
-    $row.Controls.AddRange(@($cb, $lb))
-    $Flows[$tab].Controls.Add($row)
-    $Checks[$key] = $cb
-    $TabKeys[$tab] += $key
-}
-
-Add-Row 'Apps' 'app:fivem' 'FiveM' 'GTA V multiplayer client. Placed in %LocalAppData%\FiveM with shortcuts; the first launch finishes its own setup.' $false
-Add-Row 'Apps' 'app:rockstar' 'Rockstar Games Launcher' 'Official launcher for GTA V and Red Dead Redemption 2. Silent install.' $false
-Add-Row 'Apps' 'app:epic' 'Epic Games Launcher' 'Epic store and launcher, installed from Epic''s official MSI.' $false
-Add-Row 'Apps' 'app:steam' 'Steam' 'Valve''s game store and launcher, installed from the official Steam CDN.' $false
-Add-Row 'Apps' 'app:discord' 'Discord' 'Voice and text chat. Installs for your user and starts automatically.' $false
-Add-Row 'Apps' 'app:brave' 'Brave' 'Privacy-focused Chromium browser with built-in ad blocking.' $false
-Add-Row 'Apps' 'app:everything' 'Everything' 'Instant file search for Windows. Latest version is found on voidtools.com.' $false
-Add-Row 'Apps' 'app:die' 'Detect It Easy (DIE)' 'File type, packer and compiler detector for reverse engineering. Latest GitHub release, portable.' $false
-Add-Row 'Apps' 'app:obs' 'OBS Studio' 'Free recording and streaming software. Latest release from the official GitHub.' $false
-
-Add-Row 'Drivers' 'drv:chipset' 'CPU / chipset drivers' 'Picks the right package for your processor automatically (Intel or AMD). Falls back to the official vendor page if no silent installer exists.' $false 72
-Add-Row 'Drivers' 'drv:gpu' 'Graphics drivers' 'Picks the right package for your graphics card automatically (NVIDIA, AMD or Intel). Falls back to the official vendor page if no silent installer exists.' $false 72
-
-Add-Row 'Tweaks' 'tw:dark' 'Dark theme' 'Switches Windows and apps to dark mode.' $true
-Add-Row 'Tweaks' 'tw:power' 'Ultimate Performance power plan' 'Unlocks and activates the hidden plan. Uses more power, best for desktops.' $true
-Add-Row 'Tweaks' 'tw:telemetry' 'Reduce telemetry and ads' 'Minimum diagnostic data, advertising ID, tailored experiences, feedback prompts and Start menu suggestions off. No services are disabled.' $true 72
-Add-Row 'Tweaks' 'tw:mouse' 'Disable "Enhance pointer precision"' 'Turns off mouse acceleration for consistent aim and cursor movement. Applies instantly.' $true
-Add-Row 'Tweaks' 'tw:explorer' 'File Explorer privacy' 'Stops Quick access from showing recent files and frequent folders.' $true
-
-Add-Row 'Debloat' 'bloat' 'Remove bloatware' ('Removes pre-installed apps for all users and stops them returning on new accounts: Xbox apps (Xbox, Game Bar overlay, identity), Phone Link / Cross Device, Mail and Calendar, new Outlook, Maps, Movies and TV, News, Weather, Tips, Get Help, Feedback Hub, People, Skype, Teams (personal), Clipchamp, Copilot, Dev Home, Power Automate, Mixed Reality, 3D Viewer, Paint 3D, To Do, Journal, Family, OneNote, Microsoft 365 hub and sponsored apps (Candy Crush, TikTok, Facebook, Instagram, Netflix, Disney+, Prime Video, LinkedIn, Twitter, Duolingo, Adobe Express, McAfee).' + "`r`n`r`nNever touched: Microsoft Store, Photos, Calculator, Terminal, Notepad, Edge, Windows Security and system components. Removing the Xbox apps can break Xbox sign-in for Store and Game Pass games.") $false 190
-
-$chkRestore = New-Object Windows.Forms.CheckBox
-$chkRestore.Text = 'Create a system restore point first'
-$chkRestore.Checked = $true
-$chkRestore.AutoSize = $true
-$chkRestore.Location = New-Object Drawing.Point(16, 14)
-$chkRestore.ForeColor = $cText
-
-$lblTheme = New-Object Windows.Forms.Label
-$lblTheme.Text = 'Theme'
-$lblTheme.AutoSize = $true
-$lblTheme.ForeColor = $cMuted
-$lblTheme.Location = New-Object Drawing.Point(380, 16)
-
-$cmbTheme = New-Object Windows.Forms.ComboBox
-$cmbTheme.DropDownStyle = 'DropDownList'
-$cmbTheme.Items.AddRange(@('Snowfall', 'Rainfall', 'Off'))
-$cmbTheme.Location = New-Object Drawing.Point(434, 12)
-$cmbTheme.Width = 130
-
-function New-FlatButton($text, $x, $w) {
-    $b = New-Object Windows.Forms.Button
+function New-Btn($text, $style, $x, $y, $w, $h, $anchor = 'Top,Left') {
+    $b = New-Object FxButton
     $b.Text = $text
-    $b.FlatStyle = 'Flat'
-    $b.FlatAppearance.BorderSize = 0
-    $b.BackColor = $cActive
-    $b.ForeColor = $cText
-    $b.Size = New-Object Drawing.Size($w, 34)
-    $b.Location = New-Object Drawing.Point($x, 50)
-    $b.Cursor = 'Hand'
+    $b.Style = $style
+    $b.Location = New-Object Drawing.Point($x, $y)
+    $b.Size = New-Object Drawing.Size($w, $h)
+    $b.Anchor = $anchor
+    $form.Controls.Add($b)
     $b
 }
-
-$btnAll = New-FlatButton 'Select all' 16 110
-$btnNone = New-FlatButton 'Select none' 134 110
-$btnUndo = New-FlatButton 'Undo tweaks' 252 120
-$btnGo = New-FlatButton 'Install / Apply' 0 200
-$btnGo.Height = 40
-$btnGo.Top = 47
-$btnGo.Font = New-Object Drawing.Font('Segoe UI Semibold', 11)
-$btnGo.ForeColor = [Drawing.Color]::White
-
-$bar = New-Object Windows.Forms.ProgressBar
-$bar.Location = New-Object Drawing.Point(16, 98)
-$bar.Height = 8
-$bar.Anchor = 'Top,Left,Right'
-
-$txt = New-Object Windows.Forms.TextBox
-$txt.Multiline = $true
-$txt.ReadOnly = $true
-$txt.ScrollBars = 'Vertical'
-$txt.BackColor = $cBg
-$txt.ForeColor = $cMuted
-$txt.BorderStyle = 'None'
-$txt.Font = New-Object Drawing.Font('Consolas', 9)
-$txt.Location = New-Object Drawing.Point(16, 114)
-$txt.Anchor = 'Top,Bottom,Left,Right'
-
-$bottom.Controls.AddRange(@($chkRestore, $lblTheme, $cmbTheme, $btnAll, $btnNone, $btnUndo, $btnGo, $bar, $txt))
-
-function Update-Layout {
-    $w = $bottom.ClientSize.Width
-    $btnGo.Left = $w - $btnGo.Width - 16
-    $bar.Width = $w - 32
-    $txt.Width = $w - 32
-    $txt.Height = $bottom.ClientSize.Height - 124
-}
-$bottom.Add_Resize({ Update-Layout })
 
 function Write-Log($m) {
     $txt.AppendText(("[{0}] {1}`r`n" -f (Get-Date -Format 'HH:mm:ss'), $m))
@@ -643,55 +739,165 @@ function Write-Log($m) {
 }
 
 function Show-Tab($n) {
+    $script:CurrentTab = $n
     foreach ($k in $Flows.Keys) {
         $Flows[$k].Visible = ($k -eq $n)
-        $NavBtns[$k].BackColor = $(if ($k -eq $n) { $cActive } else { $cCard })
+        $NavBtns[$k].Active = ($k -eq $n)
     }
-    $script:CurrentTab = $n
+    $btnGo.Text = $PrimaryText[$n]
+    $btnUndo.Visible = ($n -eq 'Tweaks')
+    $btnAll.Visible = ($n -ne 'Debloat')
+    $btnNone.Visible = ($n -ne 'Debloat')
+    $null = $Flows[$n].Focus()
 }
 
 function Apply-Theme($n) {
-    $t = $Themes[$n]
-    $header.SetMode($t.Mode)
-    $header.Accent = $t.Accent
-    $btnGo.BackColor = $t.Accent
+    $form.SetMode($Themes[$n])
+    foreach ($k in $ChipBtns.Keys) { $ChipBtns[$k].Active = ($k -eq $n) }
 }
 
-$cmbTheme.Add_SelectedIndexChanged({ Apply-Theme $cmbTheme.SelectedItem })
+$i = 0
+foreach ($n in 'Apps', 'Drivers', 'Tweaks', 'Debloat') {
+    $f = New-Object Windows.Forms.FlowLayoutPanel
+    $f.Location = New-Object Drawing.Point(236, 118)
+    $f.Size = New-Object Drawing.Size(790, 482)
+    $f.Anchor = 'Top,Bottom,Left,Right'
+    $f.FlowDirection = 'TopDown'
+    $f.WrapContents = $false
+    $f.AutoScroll = $true
+    $f.BackColor = [Drawing.Color]::Transparent
+    $f.Visible = $false
+    $form.Controls.Add($f)
+    try { [W.U]::SetWindowTheme($f.Handle, 'DarkMode_Explorer', $null) | Out-Null } catch { }
+    $Flows[$n] = $f
+
+    $b = New-Btn $n 'nav' 24 (126 + $i * 46) 190 42
+    $name = $n
+    $b.Add_Click({ Show-Tab $name }.GetNewClosure())
+    $NavBtns[$n] = $b
+    $i++
+}
+
+$cx = 760
+foreach ($t in @(@('Snow', 88), @('Rain', 88), @('Off', 64))) {
+    $c = New-Btn $t[0] 'chip' $cx 34 $t[1] 32 'Top,Right'
+    $name = $t[0]
+    $c.Add_Click({ Apply-Theme $name }.GetNewClosure())
+    $ChipBtns[$name] = $c
+    $cx += $t[1] + 8
+}
+
+function Add-Row($tab, $key, $title, $desc, $on, $height = 78) {
+    $r = New-Object FxRow
+    $r.Title = $title
+    $r.Desc = $desc
+    $r.Checked = $on
+    $r.Size = New-Object Drawing.Size(752, $height)
+    $r.Margin = New-Object Windows.Forms.Padding(2, 0, 2, 10)
+    $Flows[$tab].Controls.Add($r)
+    $Checks[$key] = $r
+    $TabKeys[$tab] += $key
+}
+
+Add-Row 'Apps' 'app:fivem' 'FiveM' 'GTA V multiplayer client. Placed in %LocalAppData%\FiveM with shortcuts; the first launch finishes its own setup.' $false
+Add-Row 'Apps' 'app:rockstar' 'Rockstar Games Launcher' 'Official launcher for GTA V and Red Dead Redemption 2. Silent install.' $false
+Add-Row 'Apps' 'app:epic' 'Epic Games Launcher' 'Epic store and launcher, installed from the official Epic MSI.' $false
+Add-Row 'Apps' 'app:steam' 'Steam' 'Valve game store and launcher, installed from the official Steam CDN.' $false
+Add-Row 'Apps' 'app:discord' 'Discord' 'Voice and text chat. Installs for your user and starts automatically.' $false
+Add-Row 'Apps' 'app:brave' 'Brave' 'Privacy-focused Chromium browser with built-in ad blocking.' $false
+Add-Row 'Apps' 'app:everything' 'Everything' 'Instant file search for Windows. The latest version is found on voidtools.com.' $false
+Add-Row 'Apps' 'app:die' 'Detect It Easy (DIE)' 'File type, packer and compiler detector for reverse engineering. Latest GitHub release, portable.' $false
+Add-Row 'Apps' 'app:obs' 'OBS Studio' 'Free recording and streaming software. Latest release from the official GitHub.' $false
+
+Add-Row 'Drivers' 'drv:chipset' 'CPU / chipset drivers' 'Picks the right package for your processor automatically (Intel or AMD). Falls back to the official vendor page if there is no silent installer.' $false 84
+Add-Row 'Drivers' 'drv:gpu' 'Graphics drivers' 'Picks the right package for your graphics card automatically (NVIDIA, AMD or Intel). Falls back to the official vendor page if there is no silent installer.' $false 84
+
+Add-Row 'Tweaks' 'tw:dark' 'Dark theme' 'Switches Windows and apps to dark mode.' $true
+Add-Row 'Tweaks' 'tw:power' 'Ultimate Performance power plan' 'Unlocks and activates the hidden plan. Uses more power, best for desktops.' $true
+Add-Row 'Tweaks' 'tw:telemetry' 'Reduce telemetry and ads' 'Minimum diagnostic data. Turns off advertising ID, tailored experiences, feedback prompts and Start menu suggestions. No services are disabled.' $true 84
+Add-Row 'Tweaks' 'tw:mouse' 'Disable "Enhance pointer precision"' 'Turns off mouse acceleration for consistent aim and cursor movement. Applies instantly.' $true
+Add-Row 'Tweaks' 'tw:explorer' 'File Explorer privacy' 'Stops Quick access from showing recent files and frequent folders.' $true
+
+Add-Row 'Debloat' 'bloat' 'Remove bloatware' ('Removes pre-installed apps for all users and stops them returning on new accounts: Xbox apps (Xbox, Game Bar overlay, identity), Phone Link / Cross Device, Mail and Calendar, new Outlook, Maps, Movies and TV, News, Weather, Tips, Get Help, Feedback Hub, People, Skype, Teams (personal), Clipchamp, Copilot, Dev Home, Power Automate, Mixed Reality, 3D Viewer, Paint 3D, To Do, Journal, Family, OneNote, Microsoft 365 hub and sponsored apps (Candy Crush, TikTok, Facebook, Instagram, Netflix, Disney+, Prime Video, LinkedIn, Twitter, Duolingo, Adobe Express, McAfee).' + "`r`n`r`nNever touched: Microsoft Store, Photos, Calculator, Terminal, Notepad, Edge, Windows Security and system components. Removing the Xbox apps can break Xbox sign-in for Store and Game Pass games.") $false 270
+
+$restore = New-Object FxRow
+$restore.Title = 'Create a restore point first'
+$restore.Desc = 'Made before anything is applied, on any page.'
+$restore.Checked = $true
+$restore.Location = New-Object Drawing.Point(24, ($H - 162))
+$restore.Size = New-Object Drawing.Size(420, 62)
+$restore.Anchor = 'Bottom,Left'
+$form.Controls.Add($restore)
+
+$btnAll = New-Btn 'Select all' 'ghost' 460 ($H - 149) 104 36 'Bottom,Left'
+$btnNone = New-Btn 'Select none' 'ghost' 572 ($H - 149) 104 36 'Bottom,Left'
+$btnUndo = New-Btn 'Undo tweaks' 'ghost' 684 ($H - 149) 112 36 'Bottom,Left'
+$btnGo = New-Btn 'Install selected' 'primary' 816 ($H - 153) 200 44 'Bottom,Right'
+
+$bar = New-Object FxProgress
+$bar.Location = New-Object Drawing.Point(24, ($H - 86))
+$bar.Size = New-Object Drawing.Size(992, 3)
+$bar.Anchor = 'Bottom,Left,Right'
+$form.Controls.Add($bar)
+
+$txt = New-Object Windows.Forms.TextBox
+$txt.Multiline = $true
+$txt.ReadOnly = $true
+$txt.ScrollBars = 'Vertical'
+$txt.BackColor = [Drawing.Color]::Black
+$txt.ForeColor = [Drawing.Color]::FromArgb(150, 156, 168)
+$txt.BorderStyle = 'None'
+$txt.Font = New-Object Drawing.Font('Consolas', 9)
+$txt.Location = New-Object Drawing.Point(24, ($H - 76))
+$txt.Size = New-Object Drawing.Size(992, 66)
+$txt.Anchor = 'Bottom,Left,Right'
+$form.Controls.Add($txt)
+try { [W.U]::SetWindowTheme($txt.Handle, 'DarkMode_Explorer', $null) | Out-Null } catch { }
+
 $btnAll.Add_Click({ foreach ($k in $TabKeys[$script:CurrentTab]) { $Checks[$k].Checked = $true } })
 $btnNone.Add_Click({ foreach ($k in $TabKeys[$script:CurrentTab]) { $Checks[$k].Checked = $false } })
 $btnUndo.Add_Click({
-        $btnUndo.Enabled = $false
+        if ($script:Busy) { return }
         try { Undo-Tweaks } catch { Write-Log "Undo failed: $($_.Exception.Message)" }
-        $btnUndo.Enabled = $true
     })
 
 $btnGo.Add_Click({
-        $steps = @()
-        $selected = @($Checks.Keys | Where-Object { $Checks[$_].Checked })
+        if ($script:Busy) { return }
+        $tab = $script:CurrentTab
+        $selected = @($TabKeys[$tab] | Where-Object { $Checks[$_].Checked })
         if (-not $selected) {
-            Write-Log 'Nothing selected.'
+            Write-Log "Nothing selected on the $tab page."
             return
         }
+        $script:Busy = $true
         $btnGo.Enabled = $false
-        $needsTweaks = [bool]($selected | Where-Object { $_ -like 'tw:*' })
-        if ($chkRestore.Checked -and ($needsTweaks -or $selected -contains 'bloat')) {
+
+        $steps = @()
+        if ($restore.Checked) {
             $steps += @{ Label = 'Creating restore point'; Action = { New-RestorePoint } }
         }
-        foreach ($k in $selected | Where-Object { $_ -like 'tw:*' }) {
-            $key = $k.Substring(3)
-            $steps += @{ Label = "Applying tweak: $key"; Action = $TweakActions[$key] }
+        switch ($tab) {
+            'Apps' {
+                foreach ($k in $selected) {
+                    $key = $k.Substring(4)
+                    $steps += @{ Label = "App: $($AppDefs[$key].Name)"; Action = { Install-App $key }.GetNewClosure() }
+                }
+            }
+            'Drivers' {
+                if ($selected -contains 'drv:chipset') { $steps += @{ Label = 'CPU / chipset drivers'; Action = { Install-Chipset } } }
+                if ($selected -contains 'drv:gpu') { $steps += @{ Label = 'Graphics drivers'; Action = { Install-Gpu } } }
+            }
+            'Tweaks' {
+                foreach ($k in $selected) {
+                    $key = $k.Substring(3)
+                    $steps += @{ Label = "Tweak: $key"; Action = $TweakActions[$key] }
+                }
+            }
+            'Debloat' {
+                $steps += @{ Label = 'Removing bloatware'; Action = { Remove-Bloat } }
+            }
         }
-        if ($selected -contains 'bloat') {
-            $steps += @{ Label = 'Removing bloatware'; Action = { Remove-Bloat } }
-        }
-        if ($selected -contains 'drv:chipset') { $steps += @{ Label = 'CPU / chipset drivers'; Action = { Install-Chipset } } }
-        if ($selected -contains 'drv:gpu') { $steps += @{ Label = 'Graphics drivers'; Action = { Install-Gpu } } }
-        foreach ($k in $selected | Where-Object { $_ -like 'app:*' }) {
-            $key = $k.Substring(4)
-            $steps += @{ Label = "App: $($AppDefs[$key].Name)"; Action = { Install-App $key }.GetNewClosure() }
-        }
-        $bar.Minimum = 0
+
         $bar.Maximum = $steps.Count
         $bar.Value = 0
         foreach ($s in $steps) {
@@ -699,20 +905,21 @@ $btnGo.Add_Click({
             try { & $s.Action } catch { Write-Log "Error: $($_.Exception.Message)" }
             $bar.Value = [Math]::Min($bar.Value + 1, $bar.Maximum)
         }
-        Write-Log "Done. Installers were saved in $Dl"
+        Write-Log 'Finished.'
+        if ($tab -eq 'Apps') { Write-Log "Installers were saved in $Dl" }
+        $script:Busy = $false
         $btnGo.Enabled = $true
-        if ($selected -contains 'tw:dark' -or $selected -contains 'tw:explorer' -or $selected -contains 'bloat') {
-            $ans = [Windows.Forms.MessageBox]::Show('Restart File Explorer now to apply the theme and Explorer changes? (Your taskbar will flicker for a second. Signing out also works.)', 'deep', 'YesNo', 'Question')
+
+        if ($selected -contains 'tw:dark' -or $selected -contains 'tw:explorer' -or $tab -eq 'Debloat') {
+            $ans = [Windows.Forms.MessageBox]::Show('Restart File Explorer now to apply the changes? Your taskbar will flicker for a second. Signing out also works.', 'deep', 'YesNo', 'Question')
             if ($ans -eq 'Yes') { Stop-Process -Name explorer -Force }
         }
     })
 
-$form.Controls.AddRange(@($content, $nav, $bottom, $header))
 $form.Add_Shown({
-        $cmbTheme.SelectedItem = 'Snowfall'
+        Apply-Theme 'Snow'
         Show-Tab 'Apps'
-        Update-Layout
-        Write-Log "deep v$Version ready. Installers are saved in $Dl"
+        Write-Log "deep v$Version ready. Only the page you are on is applied."
     })
 
 [void]$form.ShowDialog()
