@@ -1,4 +1,4 @@
-$Version = '1.3.5'
+$Version = '1.4.0'
 $Repo = 'Trincass/deep'
 $Branch = 'main'
 $FiveMBranch = 'fivem'
@@ -42,7 +42,7 @@ public static class FxUtil
 {
     public static Font TitleFont = new Font("Segoe UI Semibold", 11.5f);
     public static Font DescFont = new Font("Segoe UI", 9.5f);
-    public static Font BtnFont = new Font("Segoe UI Semibold", 10f);
+    public static Font BtnFont = new Font("Segoe UI Semibold", 9.5f);
     public static Font BigFont = new Font("Segoe UI Light", 34f);
     public static Font SubFont = new Font("Segoe UI", 10f);
     public static SolidBrush Gray = new SolidBrush(Color.FromArgb(150, 156, 168));
@@ -973,7 +973,7 @@ foreach ($n in 'Apps', 'Drivers', 'Tweaks', 'FiveM', 'Debloat') {
         $f.Visible = $false
         $form.Controls.Add($f)
         $Flows[$n] = $f
-        $b = New-Btn $n 'nav' (24 + $i * 236) 112 228 42
+        $b = New-Btn $n 'nav' (24 + $i * 160) 112 152 36
         $name = $n
         $b.Add_Click({ Show-Tab $name }.GetNewClosure())
         $NavBtns[$n] = $b
@@ -997,16 +997,16 @@ foreach ($n in 'Apps', 'Drivers', 'Tweaks', 'FiveM', 'Debloat') {
     try { [W.U]::SetWindowTheme($f.Handle, 'DarkMode_Explorer', $null) | Out-Null } catch { }
     $Flows[$n] = $f
 
-    $b = New-Btn $n 'nav' (24 + $i * 236) 112 228 42
+    $b = New-Btn $n 'nav' (24 + $i * 160) 112 152 36
     $name = $n
     $b.Add_Click({ Show-Tab $name }.GetNewClosure())
     $NavBtns[$n] = $b
     $i++
 }
 
-$cx = 960
-foreach ($t in @(@('Snow', 88), @('Rain', 88), @('Off', 64))) {
-    $c = New-Btn $t[0] 'chip' $cx 34 $t[1] 32 'Top,Right'
+$cx = $form.ClientSize.Width - 24 - (64 + 8 + 64 + 8 + 48)
+foreach ($t in @(@('Snow', 64), @('Rain', 64), @('Off', 48))) {
+    $c = New-Btn $t[0] 'chip' $cx 36 $t[1] 28 'Top,Right'
     $name = $t[0]
     $c.Add_Click({ Apply-Theme $name }.GetNewClosure())
     $ChipBtns[$name] = $c
@@ -1103,15 +1103,15 @@ $restore = New-Object FxRow
 $restore.Title = 'Create a restore point first'
 $restore.Desc = 'Made before anything is applied, on any page.'
 $restore.Checked = $true
-$restore.Location = New-Object Drawing.Point(24, ($H - 162))
-$restore.Size = New-Object Drawing.Size(420, 62)
+$restore.Location = New-Object Drawing.Point(24, ($H - 158))
+$restore.Size = New-Object Drawing.Size(284, 58)
 $restore.Anchor = 'Bottom,Left'
 $form.Controls.Add($restore)
 
-$btnAll = New-Btn 'Select all' 'ghost' 460 ($H - 149) 104 36 'Bottom,Left'
-$btnNone = New-Btn 'Select none' 'ghost' 572 ($H - 149) 104 36 'Bottom,Left'
-$btnUndo = New-Btn 'Undo tweaks' 'ghost' 684 ($H - 149) 112 36 'Bottom,Left'
-$btnGo = New-Btn 'Install selected' 'primary' 1016 ($H - 153) 200 44 'Bottom,Right'
+$btnAll = New-Btn 'Select all' 'ghost' 320 ($H - 146) 84 30 'Bottom,Left'
+$btnNone = New-Btn 'Select none' 'ghost' 412 ($H - 146) 88 30 'Bottom,Left'
+$btnUndo = New-Btn 'Undo tweaks' 'ghost' 508 ($H - 146) 96 30 'Bottom,Left'
+$btnGo = New-Btn 'Install selected' 'primary' 1048 ($H - 142) 168 36 'Bottom,Right'
 
 $bar = New-Object FxProgress
 $bar.Location = New-Object Drawing.Point(24, ($H - 86))
@@ -1138,31 +1138,31 @@ $debloatSelectRecommended = New-Object FxButton
 $debloatSelectRecommended.Text = 'Select recommended'
 $debloatSelectRecommended.Style = 'ghost'
 $debloatSelectRecommended.Location = New-Object Drawing.Point(0, 4)
-$debloatSelectRecommended.Size = New-Object Drawing.Size(190, 36)
+$debloatSelectRecommended.Size = New-Object Drawing.Size(172, 30)
 $debloatPanel.Controls.Add($debloatSelectRecommended)
 $debloatSelectOptional = New-Object FxButton
 $debloatSelectOptional.Text = 'Select optional'
 $debloatSelectOptional.Style = 'ghost'
-$debloatSelectOptional.Location = New-Object Drawing.Point(198, 4)
-$debloatSelectOptional.Size = New-Object Drawing.Size(164, 36)
+$debloatSelectOptional.Location = New-Object Drawing.Point(180, 4)
+$debloatSelectOptional.Size = New-Object Drawing.Size(148, 30)
 $debloatPanel.Controls.Add($debloatSelectOptional)
 $debloatClear = New-Object FxButton
 $debloatClear.Text = 'Clear selection'
 $debloatClear.Style = 'ghost'
-$debloatClear.Location = New-Object Drawing.Point(370, 4)
-$debloatClear.Size = New-Object Drawing.Size(170, 36)
+$debloatClear.Location = New-Object Drawing.Point(336, 4)
+$debloatClear.Size = New-Object Drawing.Size(136, 30)
 $debloatPanel.Controls.Add($debloatClear)
 $script:DebloatOnlyInstalled = New-Object Windows.Forms.CheckBox
 $script:DebloatOnlyInstalled.Text = 'Only show installed apps'
-$script:DebloatOnlyInstalled.Location = New-Object Drawing.Point(554, 10)
+$script:DebloatOnlyInstalled.Location = New-Object Drawing.Point(585, 6)
 $script:DebloatOnlyInstalled.Size = New-Object Drawing.Size(205, 28)
 $script:DebloatOnlyInstalled.ForeColor = [Drawing.Color]::White
 $script:DebloatOnlyInstalled.BackColor = [Drawing.Color]::Black
 $debloatPanel.Controls.Add($script:DebloatOnlyInstalled)
 $script:DebloatSearch = New-Object Windows.Forms.TextBox
 $script:DebloatSearch.Text = 'Search apps...'
-$script:DebloatSearch.Location = New-Object Drawing.Point(875, 5)
-$script:DebloatSearch.Size = New-Object Drawing.Size(300, 32)
+$script:DebloatSearch.Location = New-Object Drawing.Point(906, 5)
+$script:DebloatSearch.Size = New-Object Drawing.Size(270, 30)
 $script:DebloatSearch.BackColor = [Drawing.Color]::FromArgb(42, 42, 42)
 $script:DebloatSearch.ForeColor = [Drawing.Color]::White
 $script:DebloatSearch.BorderStyle = 'FixedSingle'
