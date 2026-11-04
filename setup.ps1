@@ -1,6 +1,7 @@
 $Version = '1.2.0'
 $Repo = 'Trincass/deep'
 $Branch = 'main'
+$FiveMBranch = 'fivem'
 $Raw = "https://raw.githubusercontent.com/$Repo/$Branch/setup.ps1"
 
 $ErrorActionPreference = 'Continue'
@@ -589,7 +590,7 @@ function Install-FiveMConfig {
     if (Get-Process -Name 'FiveM*' -ErrorAction SilentlyContinue) {
         Write-Log 'FiveM is running. Close it first, or it may overwrite these files when it exits.'
     }
-    $base = "https://raw.githubusercontent.com/$Repo/$Branch/fivem"
+    $base = "https://raw.githubusercontent.com/$Repo/$FiveMBranch/fivem"
     $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
     foreach ($name in 'gta5_settings.xml', 'fivem.cfg') {
         $src = $null
