@@ -1,4 +1,4 @@
-$Version = '1.4.6'
+$Version = '1.4.7'
 $Repo = 'Trincass/deep'
 $Branch = 'main'
 $FiveMBranch = 'fivem'
@@ -770,6 +770,12 @@ $script:DebloatSearch = $null
 $script:DebloatOnlyInstalled = $null
 $script:DebloatStatus = $null
 
+function Test-ProtectedDebloatApp($app) {
+    # Never offer Windows runtimes or common development tools for removal.
+    $identity = "$(if ($app.Name) { $app.Name }) $($app.Description) $($app.AppIds -join ' ')"
+    return $identity -match '(?i)(copilot|visual\s*studio|vs\s*code|vscode|c\+\+|vcredist|vc\.?redist|microsoft\.vclibs|microsoft\.ui\.xaml|microsoft\.net\.native|windowsappruntime|\.net\s*(desktop\s*)?runtime|developer\s*mode|dev\s*home|windows\s*terminal|powershell|\bgit\b|\bpython\b|\bnode(js)?\b|programming|development\s*tools)'
+}
+
 function Get-DebloatCatalog {
     $appFile = Join-Path $Data 'win11debloat-apps.json'
     $nameFile = Join-Path $Data 'win11debloat-app-names.json'
@@ -818,6 +824,8 @@ function Get-DebloatCatalog {
         }
         $name = if ($meta -and $meta.FriendlyName) { $meta.FriendlyName } else { $ids[0] }
         $description = if ($meta -and $meta.Description) { $meta.Description } else { 'Optional Windows or preinstalled app.' }
+        $candidate = [pscustomobject]@{ Name = $name; Description = $description; AppIds = $ids }
+        if (Test-ProtectedDebloatApp $candidate) { continue }
         $isInstalled = [bool](@($ids | Where-Object { $installedIds -contains $_ }).Count)
         if (-not $isInstalled -and $app.RemovalMethod -eq 'WinGet' -and $wingetList) {
             foreach ($id in $ids) {
@@ -861,7 +869,11 @@ function Update-DebloatStatus {
     $script:DebloatStatus.Text = "$selectedCount selected   |   $shownCount apps shown   |   Recommended + Optional"
 }
 
-function Remove-DebloatApp($app) {
+function Remove-DebloatApp($app, $appxPackages, $provisionedPackages) {
+    if (Test-ProtectedDebloatApp $app) {
+        Write-Log "Protected from removal: $($app.Name)"
+        return
+    }
     $ids = @($app.AppIds)
     $removed = $false
     if ($app.RemovalMethod -eq 'WinGet' -and (Test-Winget)) {
@@ -871,12 +883,12 @@ function Remove-DebloatApp($app) {
         }
     }
     if (-not $removed) {
-        foreach ($pkg in @(Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue | Where-Object { $ids -contains $_.Name })) {
+        foreach ($pkg in @($appxPackages | Where-Object { $ids -contains $_.Name })) {
             Write-Log "Removing $($app.Name)"
             Remove-AppxPackage -Package $pkg.PackageFullName -AllUsers -ErrorAction SilentlyContinue
             $removed = $true
         }
-        foreach ($pkg in @(Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Where-Object { $ids -contains $_.DisplayName })) {
+        foreach ($pkg in @($provisionedPackages | Where-Object { $ids -contains $_.DisplayName })) {
             Write-Log "Removing $($app.Name) for new user accounts"
             Remove-AppxProvisionedPackage -Online -PackageName $pkg.PackageName -ErrorAction SilentlyContinue | Out-Null
             $removed = $true
@@ -1284,6 +1296,13 @@ $btnGo.Add_Click({
             Write-Log "Nothing selected on the $tab page."
             return
         }
+        $appxSnapshot = @()
+        $provisionedSnapshot = @()
+        if ($tab -eq 'Debloat') {
+            Write-Log 'Scanning installed app packages once...'
+            $appxSnapshot = @(Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue)
+            $provisionedSnapshot = @(Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue)
+        }
         $script:Busy = $true
         $btnGo.Enabled = $false
 
@@ -1314,7 +1333,7 @@ $btnGo.Add_Click({
             }
             'Debloat' {
                 foreach ($app in $selectedDebloat) {
-                    $steps += @{ Label = "Removing app: $($app.Name)"; Action = { Remove-DebloatApp $app }.GetNewClosure() }
+                    $steps += @{ Label = "Removing app: $($app.Name)"; Action = { Remove-DebloatApp $app $appxSnapshot $provisionedSnapshot }.GetNewClosure() }
                 }
             }
         }
