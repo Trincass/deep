@@ -37,7 +37,6 @@ The FiveM page downloads the two files from the `fivem` folder of this repositor
 
 ## Notes
 
-- Review the script before running it. Running remote code with `irm | iex` is only safe if you trust the source.
 - Some vendors (AMD, parts of NVIDIA) do not offer stable silent download links. In that case deep opens the official download page.
 - Removing the Xbox apps can break Xbox sign-in for Microsoft Store and Game Pass games.
 - The FiveM settings file sets a fixed resolution and refresh rate. Change them in `fivem/gta5_settings.xml` if your monitor differs.
