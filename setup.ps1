@@ -1,4 +1,4 @@
-$Version = '1.4.7'
+$Version = '1.4.8'
 $Repo = 'Trincass/deep'
 $Branch = 'main'
 $FiveMBranch = 'fivem'
@@ -869,6 +869,25 @@ function Update-DebloatStatus {
     $script:DebloatStatus.Text = "$selectedCount selected   |   $shownCount apps shown   |   Recommended + Optional"
 }
 
+function Toggle-DebloatGroup($recommendation) {
+    $rows = @($script:DebloatGrid.Rows | Where-Object { $_.Tag.Recommendation -eq $recommendation })
+    if (-not $rows.Count) { return }
+    $allSelected = @($rows | Where-Object { -not [bool]$_.Cells[0].Value }).Count -eq 0
+    foreach ($row in $rows) { $row.Cells[0].Value = -not $allSelected }
+}
+
+function Test-DebloatAppInstalled($app, $appxPackages, $provisionedPackages, $wingetList) {
+    $ids = @($app.AppIds)
+    if (@($appxPackages | Where-Object { $ids -contains $_.Name }).Count -gt 0) { return $true }
+    if (@($provisionedPackages | Where-Object { $ids -contains $_.DisplayName }).Count -gt 0) { return $true }
+    if ($app.RemovalMethod -eq 'WinGet' -and $wingetList) {
+        foreach ($id in $ids) {
+            if ($wingetList -match "(?im)(^|\s)$([Regex]::Escape($id))(\s|$)") { return $true }
+        }
+    }
+    return $false
+}
+
 function Remove-DebloatApp($app, $appxPackages, $provisionedPackages) {
     if (Test-ProtectedDebloatApp $app) {
         Write-Log "Protected from removal: $($app.Name)"
@@ -1254,8 +1273,8 @@ $script:DebloatGrid.Add_CurrentCellDirtyStateChanged({
         if ($script:DebloatGrid.IsCurrentCellDirty) { $script:DebloatGrid.CommitEdit([Windows.Forms.DataGridViewDataErrorContexts]::Commit) }
     })
 $script:DebloatGrid.Add_CellValueChanged({ Update-DebloatStatus })
-$debloatSelectRecommended.Add_Click({ foreach ($r in $script:DebloatGrid.Rows) { $r.Cells[0].Value = ($r.Tag.Recommendation -eq 'Recommended') } })
-$debloatSelectOptional.Add_Click({ foreach ($r in $script:DebloatGrid.Rows) { $r.Cells[0].Value = ($r.Tag.Recommendation -eq 'Optional') } })
+$debloatSelectRecommended.Add_Click({ Toggle-DebloatGroup 'Recommended' })
+$debloatSelectOptional.Add_Click({ Toggle-DebloatGroup 'Optional' })
 $debloatClear.Add_Click({ foreach ($r in $script:DebloatGrid.Rows) { $r.Cells[0].Value = $false } })
 
 function Load-DebloatUi {
@@ -1298,10 +1317,22 @@ $btnGo.Add_Click({
         }
         $appxSnapshot = @()
         $provisionedSnapshot = @()
+        $wingetSnapshot = ''
         if ($tab -eq 'Debloat') {
             Write-Log 'Scanning installed app packages once...'
             $appxSnapshot = @(Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue)
             $provisionedSnapshot = @(Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue)
+            if (($selectedDebloat | Where-Object { $_.RemovalMethod -eq 'WinGet' }).Count -gt 0 -and (Test-Winget)) {
+                try { $wingetSnapshot = (& winget list --accept-source-agreements --disable-interactivity 2>$null | Out-String) } catch { }
+            }
+            $requestedCount = $selectedDebloat.Count
+            $selectedDebloat = @($selectedDebloat | Where-Object { Test-DebloatAppInstalled $_ $appxSnapshot $provisionedSnapshot $wingetSnapshot })
+            $skippedCount = $requestedCount - $selectedDebloat.Count
+            if ($skippedCount -gt 0) { Write-Log "Skipped $skippedCount selected apps because they are not installed." }
+            if (-not $selectedDebloat.Count) {
+                Write-Log 'None of the selected apps are installed; nothing to remove.'
+                return
+            }
         }
         $script:Busy = $true
         $btnGo.Enabled = $false
