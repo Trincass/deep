@@ -788,6 +788,8 @@ function Get-DebloatCatalog {
     }
 
     try {
+        $appText = $appText.TrimStart([char]0xFEFF)
+        $nameText = $nameText.TrimStart([char]0xFEFF)
         $appData = $appText | ConvertFrom-Json
         $nameData = $nameText | ConvertFrom-Json
     }
