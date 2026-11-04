@@ -1,4 +1,4 @@
-$Version = '1.2.0'
+$Version = '1.3.0'
 $Repo = 'Trincass/deep'
 $Branch = 'main'
 $FiveMBranch = 'fivem'
@@ -671,6 +671,73 @@ $TweakActions = @{
             Set-Reg $cd $n 0
         }
     }
+    suggestions = {
+        $cd = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'
+        foreach ($n in 'ContentDeliveryAllowed', 'OemPreInstalledAppsEnabled', 'PreInstalledAppsEnabled', 'PreInstalledAppsEverEnabled', 'SilentInstalledAppsEnabled', 'SystemPaneSuggestionsEnabled', 'SubscribedContent-310093Enabled', 'SubscribedContent-338387Enabled', 'SubscribedContent-338388Enabled', 'SubscribedContent-338389Enabled', 'SubscribedContent-353694Enabled', 'SubscribedContent-353696Enabled', 'SubscribedContent-353698Enabled', 'SubscribedContent-353699Enabled') { Set-Reg $cd $n 0 }
+        Set-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'ShowSyncProviderNotifications' 0
+    }
+    notifications = { Set-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\PushNotifications' 'ToastEnabled' 0 }
+    location = {
+        $p = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors'
+        Set-Reg $p 'DisableLocation' 1
+        Set-Reg $p 'DisableWindowsLocationProvider' 1
+    }
+    finddevice = { Set-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\FindMyDevice' 'AllowFindMyDevice' 0 }
+    edgebloat = {
+        $p = 'HKLM:\SOFTWARE\Policies\Microsoft\Edge'
+        Set-Reg $p 'AdsSettingForIntrusiveAdsSites' 2
+        Set-Reg $p 'HubsSidebarEnabled' 0
+        Set-Reg $p 'ShowRecommendationsEnabled' 0
+        Set-Reg $p 'SpotlightExperiencesAndRecommendationsEnabled' 0
+    }
+    updateasap = { Set-Reg 'HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings' 'IsContinuousInnovationOptedIn' 0 }
+    noreboot = { Set-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' 'NoAutoRebootWithLoggedOnUsers' 1 }
+    driverupdates = { Set-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' 'ExcludeWUDriversInQualityUpdate' 1 }
+    deliveryopt = { Set-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization' 'DODownloadMode' 0 }
+    deviceapps = { Set-Reg 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Device Metadata' 'PreventDeviceMetadataFromNetwork' 1 }
+    faststartup = { Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' 'HiberbootEnabled' 0 }
+    widgets = {
+        Set-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'TaskbarDa' 0
+        Set-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\Dsh' 'AllowNewsAndInterests' 0
+    }
+    chat = { Set-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'TaskbarMn' 0 }
+    taskview = { Set-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'ShowTaskViewButton' 0 }
+    dvr = {
+        Set-Reg 'HKCU:\System\GameConfigStore' 'GameDVR_Enabled' 0
+        Set-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR' 'AllowGameDVR' 0
+    }
+    gamebar = {
+        Set-Reg 'HKCU:\Software\Microsoft\GameBar' 'UseNexusForGameBarEnabled' 0
+        Set-Reg 'HKCU:\Software\Microsoft\GameBar' 'ShowStartupPanel' 0
+        Set-Reg 'HKCU:\Software\Microsoft\GameBar' 'GamePanelStartupTipIndex' 3
+    }
+    bing = {
+        Set-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search' 'DisableWebSearch' 1
+        Set-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Search' 'BingSearchEnabled' 0
+        Set-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Search' 'CortanaConsent' 0
+    }
+    transparency = { Set-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' 'EnableTransparency' 0 }
+    animations = {
+        Set-Reg 'HKCU:\Control Panel\Desktop\WindowMetrics' 'MinAnimate' '0' 'String'
+        Set-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects' 'VisualFXSetting' 2
+    }
+    spotlight = { Set-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'ShowDesktopSpotlightIcon' 0 }
+    snap = {
+        $p = 'HKCU:\Control Panel\Desktop'
+        Set-Reg $p 'WindowArrangementActive' '0' 'String'
+        Set-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'EnableSnapAssistFlyout' 0
+    }
+    extensions = { Set-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'HideFileExt' 0 }
+    hiddenfiles = {
+        $p = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced'
+        Set-Reg $p 'Hidden' 1
+        Set-Reg $p 'ShowSuperHidden' 1
+    }
+    bravebloat = {
+        $p = 'HKLM:\SOFTWARE\Policies\BraveSoftware\Brave'
+        Set-Reg $p 'BraveAIChatEnabled' 0
+        foreach ($n in 'BraveWalletDisabled', 'BraveRewardsDisabled', 'BraveTalkDisabled', 'BraveVPNDisabled', 'BraveNewsDisabled') { Set-Reg $p $n 1 }
+    }
     notifsound = {
         Set-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings' 'NOC_GLOBAL_SETTING_ALLOW_NOTIFICATION_SOUND' 0
         foreach ($ev in 'Notification.Default', 'Notification.IM', 'Notification.Mail', 'Notification.Reminder', 'Notification.SMS') {
@@ -692,34 +759,126 @@ $TweakActions = @{
     }
 }
 
-$BloatList = @(
-    'Microsoft.BingNews', 'Microsoft.BingWeather', 'Microsoft.BingSearch', 'Microsoft.GetHelp', 'Microsoft.Getstarted',
-    'Microsoft.MicrosoftSolitaireCollection', 'Microsoft.MicrosoftOfficeHub', 'Microsoft.People', 'Microsoft.WindowsFeedbackHub',
-    'Microsoft.ZuneMusic', 'Microsoft.ZuneVideo', 'Microsoft.MixedReality.Portal', 'Microsoft.Microsoft3DViewer', 'Microsoft.Print3D',
-    'Microsoft.MSPaint', 'Microsoft.SkypeApp', 'Microsoft.549981C3F5F10', 'Clipchamp.Clipchamp', 'MicrosoftTeams', 'MSTeams',
-    'Microsoft.PowerAutomateDesktop', 'Microsoft.OneConnect', 'Microsoft.Wallet', 'Microsoft.WindowsMaps',
-    'Microsoft.YourPhone', 'MicrosoftWindows.CrossDevice', 'microsoft.windowscommunicationsapps', 'Microsoft.OutlookForWindows',
-    'Microsoft.Todos', 'Microsoft.MicrosoftJournal', 'Microsoft.Office.OneNote', 'Microsoft.Copilot', 'Microsoft.Windows.DevHome',
-    'MicrosoftCorporationII.MicrosoftFamily',
-    'Microsoft.XboxApp', 'Microsoft.GamingApp', 'Microsoft.XboxGamingOverlay', 'Microsoft.XboxGameOverlay',
-    'Microsoft.XboxIdentityProvider', 'Microsoft.XboxSpeechToTextOverlay', 'Microsoft.Xbox.TCUI',
-    '*CandyCrush*', '*Disney*', '*TikTok*', '*Facebook*', '*Instagram*', '*Netflix*', '*PrimeVideo*', '*LinkedIn*',
-    '*Twitter*', '*Duolingo*', '*AdobeExpress*', '*McAfee*'
-)
+# App IDs and recommendation labels are read from Win11Debloat's MIT-licensed catalog.
+$DebloatCatalogUrl = 'https://raw.githubusercontent.com/Raphire/Win11Debloat/master/Config/Apps.json'
+$DebloatNamesUrl = 'https://raw.githubusercontent.com/Raphire/Win11Debloat/master/Config/Languages/en-US/Apps.json'
+$script:DebloatCatalog = @()
+$script:DebloatGrid = $null
+$script:DebloatSearch = $null
+$script:DebloatOnlyInstalled = $null
+$script:DebloatStatus = $null
 
-function Remove-Bloat {
-    Write-Log 'Scanning installed apps...'
-    $prov = @(Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue)
-    foreach ($id in $BloatList) {
-        foreach ($x in @(Get-AppxPackage -AllUsers -Name $id -ErrorAction SilentlyContinue)) {
-            Write-Log "Removing $($x.Name)"
-            Remove-AppxPackage -Package $x.PackageFullName -AllUsers -ErrorAction SilentlyContinue
-        }
-        foreach ($x in @($prov | Where-Object { $_.DisplayName -like $id })) {
-            Remove-AppxProvisionedPackage -Online -PackageName $x.PackageName -ErrorAction SilentlyContinue | Out-Null
-        }
-        [Windows.Forms.Application]::DoEvents()
+function Get-DebloatCatalog {
+    $appFile = Join-Path $Data 'win11debloat-apps.json'
+    $nameFile = Join-Path $Data 'win11debloat-app-names.json'
+    try {
+        $appText = (Invoke-WebRequest $DebloatCatalogUrl -UseBasicParsing -TimeoutSec 8).Content
+        $nameText = (Invoke-WebRequest $DebloatNamesUrl -UseBasicParsing -TimeoutSec 8).Content
+        Set-Content -LiteralPath $appFile -Value $appText -Encoding UTF8
+        Set-Content -LiteralPath $nameFile -Value $nameText -Encoding UTF8
     }
+    catch {
+        if (-not (Test-Path $appFile) -or -not (Test-Path $nameFile)) {
+            Write-Log "Could not load the app catalog: $($_.Exception.Message)"
+            return @()
+        }
+        $appText = Get-Content -LiteralPath $appFile -Raw
+        $nameText = Get-Content -LiteralPath $nameFile -Raw
+        Write-Log 'Using the saved Win11Debloat app catalog.'
+    }
+
+    try {
+        $appData = $appText | ConvertFrom-Json
+        $nameData = $nameText | ConvertFrom-Json
+    }
+    catch {
+        Write-Log "Could not read the app catalog: $($_.Exception.Message)"
+        return @()
+    }
+    $installedIds = @(
+        @(Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue | ForEach-Object { $_.Name }) +
+        @(Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | ForEach-Object { $_.DisplayName })
+    )
+    $wingetList = ''
+    if (Test-Winget) {
+        try { $wingetList = (& winget list --accept-source-agreements --disable-interactivity 2>$null | Out-String) } catch { }
+    }
+    $items = @()
+    foreach ($app in $appData.Apps) {
+        if ($app.Recommendation -notin @('safe', 'optional')) { continue }
+        $ids = @($app.AppId)
+        $meta = $null
+        foreach ($id in $ids) {
+            $property = $nameData.PSObject.Properties[$id]
+            if ($property) { $meta = $property.Value; break }
+        }
+        $name = if ($meta -and $meta.FriendlyName) { $meta.FriendlyName } else { $ids[0] }
+        $description = if ($meta -and $meta.Description) { $meta.Description } else { 'Optional Windows or preinstalled app.' }
+        $isInstalled = [bool](@($ids | Where-Object { $installedIds -contains $_ }).Count)
+        if (-not $isInstalled -and $app.RemovalMethod -eq 'WinGet' -and $wingetList) {
+            foreach ($id in $ids) {
+                if ($wingetList -match "(?im)(^|\s)$([Regex]::Escape($id))(\s|$)") { $isInstalled = $true; break }
+            }
+        }
+        $items += [pscustomobject]@{
+            AppIds = $ids
+            Name = $name
+            Description = $description
+            Recommendation = if ($app.Recommendation -eq 'safe') { 'Recommended' } else { 'Optional' }
+            RemovalMethod = $app.RemovalMethod
+            Installed = $isInstalled
+            Selected = [bool]$app.SelectedByDefault
+        }
+    }
+    $items | Sort-Object @{ Expression = { if ($_.Recommendation -eq 'Recommended') { 0 } else { 1 } } }, Name
+}
+
+function Update-DebloatRows {
+    if (-not $script:DebloatGrid) { return }
+    $search = if ($script:DebloatSearch -and $script:DebloatSearch.Text -ne 'Search apps...') { $script:DebloatSearch.Text.Trim() } else { '' }
+    foreach ($row in $script:DebloatGrid.Rows) {
+        $app = $row.Tag
+        $query = "$($app.Name) $($app.Description) $($app.AppIds -join ' ')"
+        $matchesSearch = (-not $search) -or ($query -like "*$search*")
+        $matchesInstalled = (-not $script:DebloatOnlyInstalled.Checked) -or $app.Installed
+        $row.Visible = $matchesSearch -and $matchesInstalled
+    }
+    Update-DebloatStatus
+}
+
+function Update-DebloatStatus {
+    if (-not $script:DebloatStatus -or -not $script:DebloatGrid) { return }
+    $selectedCount = 0
+    $shownCount = 0
+    foreach ($row in $script:DebloatGrid.Rows) {
+        if ($row.Visible) { $shownCount++ }
+        if ([bool]$row.Cells[0].Value) { $selectedCount++ }
+    }
+    $script:DebloatStatus.Text = "$selectedCount selected   |   $shownCount apps shown   |   Recommended + Optional"
+}
+
+function Remove-DebloatApp($app) {
+    $ids = @($app.AppIds)
+    $removed = $false
+    if ($app.RemovalMethod -eq 'WinGet' -and (Test-Winget)) {
+        foreach ($id in $ids) {
+            $p = Start-Process winget -ArgumentList "uninstall --id `"$id`" --exact --silent --accept-source-agreements --disable-interactivity" -PassThru -WindowStyle Hidden
+            if ((Wait-Proc $p) -eq 0) { $removed = $true }
+        }
+    }
+    if (-not $removed) {
+        foreach ($pkg in @(Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue | Where-Object { $ids -contains $_.Name })) {
+            Write-Log "Removing $($app.Name)"
+            Remove-AppxPackage -Package $pkg.PackageFullName -AllUsers -ErrorAction SilentlyContinue
+            $removed = $true
+        }
+        foreach ($pkg in @(Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Where-Object { $ids -contains $_.DisplayName })) {
+            Write-Log "Removing $($app.Name) for new user accounts"
+            Remove-AppxProvisionedPackage -Online -PackageName $pkg.PackageName -ErrorAction SilentlyContinue | Out-Null
+            $removed = $true
+        }
+    }
+    if (-not $removed) { Write-Log "$($app.Name) was not found as an installed app." }
 }
 
 function New-RestorePoint {
@@ -743,17 +902,21 @@ function Undo-Tweaks {
 }
 
 $Themes = @{ 'Snow' = 'snow'; 'Rain' = 'rain'; 'Off' = 'off' }
-$PrimaryText = @{ Apps = 'Install selected'; Drivers = 'Install drivers'; Tweaks = 'Apply tweaks'; FiveM = 'Apply FiveM setup'; Debloat = 'Remove bloatware' }
-$H = 780
+$PrimaryText = @{ Apps = 'Install selected'; Drivers = 'Install drivers'; Tweaks = 'Apply tweaks'; FiveM = 'Apply FiveM setup'; Debloat = 'Remove selected apps' }
+$H = 900
 
 $form = New-Object FxForm
 $form.Text = 'deep'
-$form.ClientSize = New-Object Drawing.Size(1040, $H)
+$form.ClientSize = New-Object Drawing.Size(1240, $H)
 $form.MinimumSize = $form.Size
 $form.StartPosition = 'CenterScreen'
 $form.Font = New-Object Drawing.Font('Segoe UI', 9.5)
 $form.Title = 'deep'
-$form.Sub = "Windows 10 / 11 post-install setup   |   v$Version"
+$os = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
+$osName = if ($os.ProductName) { $os.ProductName } else { 'Windows 10 / 11' }
+$osRelease = if ($os.DisplayVersion) { " ($($os.DisplayVersion))" } elseif ($os.ReleaseId) { " ($($os.ReleaseId))" } else { '' }
+$osArch = if ([Environment]::Is64BitOperatingSystem) { '64-bit' } else { '32-bit' }
+$form.Sub = "$osName$osRelease   |   $osArch   |   v$Version"
 
 $Checks = @{}
 $TabKeys = @{ Apps = @(); Drivers = @(); Tweaks = @(); FiveM = @(); Debloat = @() }
@@ -799,12 +962,32 @@ function Apply-Theme($n) {
 
 $i = 0
 foreach ($n in 'Apps', 'Drivers', 'Tweaks', 'FiveM', 'Debloat') {
+    if ($n -eq 'Debloat') {
+        $f = New-Object Windows.Forms.Panel
+        $f.Location = New-Object Drawing.Point(24, 166)
+        $f.Size = New-Object Drawing.Size(1192, 548)
+        $f.Anchor = 'Top,Bottom,Left,Right'
+        $f.BackColor = [Drawing.Color]::Transparent
+        $f.Visible = $false
+        $form.Controls.Add($f)
+        $Flows[$n] = $f
+        $b = New-Btn $n 'nav' (24 + $i * 236) 112 228 42
+        $name = $n
+        $b.Add_Click({ Show-Tab $name }.GetNewClosure())
+        $NavBtns[$n] = $b
+        $i++
+        continue
+    }
     $f = New-Object Windows.Forms.FlowLayoutPanel
-    $f.Location = New-Object Drawing.Point(236, 118)
-    $f.Size = New-Object Drawing.Size(790, 482)
+    $f.Location = New-Object Drawing.Point(24, 166)
+    $f.Size = New-Object Drawing.Size(1192, 548)
     $f.Anchor = 'Top,Bottom,Left,Right'
     $f.FlowDirection = 'TopDown'
     $f.WrapContents = $false
+    if ($n -eq 'Tweaks') {
+        $f.FlowDirection = 'LeftToRight'
+        $f.WrapContents = $true
+    }
     $f.AutoScroll = $true
     $f.BackColor = [Drawing.Color]::Transparent
     $f.Visible = $false
@@ -812,14 +995,14 @@ foreach ($n in 'Apps', 'Drivers', 'Tweaks', 'FiveM', 'Debloat') {
     try { [W.U]::SetWindowTheme($f.Handle, 'DarkMode_Explorer', $null) | Out-Null } catch { }
     $Flows[$n] = $f
 
-    $b = New-Btn $n 'nav' 24 (126 + $i * 46) 190 42
+    $b = New-Btn $n 'nav' (24 + $i * 236) 112 228 42
     $name = $n
     $b.Add_Click({ Show-Tab $name }.GetNewClosure())
     $NavBtns[$n] = $b
     $i++
 }
 
-$cx = 760
+$cx = 960
 foreach ($t in @(@('Snow', 88), @('Rain', 88), @('Off', 64))) {
     $c = New-Btn $t[0] 'chip' $cx 34 $t[1] 32 'Top,Right'
     $name = $t[0]
@@ -833,11 +1016,22 @@ function Add-Row($tab, $key, $title, $desc, $on, $height = 78) {
     $r.Title = $title
     $r.Desc = $desc
     $r.Checked = $on
-    $r.Size = New-Object Drawing.Size(752, $height)
+    $rowWidth = if ($tab -eq 'Tweaks') { 352 } else { 1148 }
+    $r.Size = New-Object Drawing.Size($rowWidth, $height)
     $r.Margin = New-Object Windows.Forms.Padding(2, 0, 2, 10)
     $Flows[$tab].Controls.Add($r)
     $Checks[$key] = $r
     $TabKeys[$tab] += $key
+}
+
+function Add-TweakSection($title) {
+    $label = New-Object Windows.Forms.Label
+    $label.Text = $title.ToUpperInvariant()
+    $label.ForeColor = [Drawing.Color]::FromArgb(190, 198, 210)
+    $label.Font = New-Object Drawing.Font('Segoe UI Semibold', 9.5)
+    $label.Size = New-Object Drawing.Size(1150, 30)
+    $label.Margin = New-Object Windows.Forms.Padding(2, 10, 2, 0)
+    $Flows['Tweaks'].Controls.Add($label)
 }
 
 Add-Row 'Apps' 'app:rockstar' 'Rockstar Games Launcher' 'Official launcher for GTA V and Red Dead Redemption 2. Silent install.' $false
@@ -852,17 +1046,56 @@ Add-Row 'Apps' 'app:obs' 'OBS Studio' 'Free recording and streaming software. La
 Add-Row 'Drivers' 'drv:chipset' 'CPU / chipset drivers' 'Picks the right package for your processor automatically (Intel or AMD). Falls back to the official vendor page if there is no silent installer.' $false 84
 Add-Row 'Drivers' 'drv:gpu' 'Graphics drivers' 'Picks the right package for your graphics card automatically (NVIDIA, AMD or Intel). Falls back to the official vendor page if there is no silent installer.' $false 84
 
+Add-TweakSection 'Privacy & suggested content'
+Add-Row 'Tweaks' 'tw:telemetry' 'Reduce telemetry and ads' 'Limits diagnostic data, advertising ID, feedback prompts and tailored experiences.' $true 84
+Add-Row 'Tweaks' 'tw:suggestions' 'Disable tips and suggested content' 'Turns off Windows tips, app suggestions and sync-provider ads.' $false 84
+Add-Row 'Tweaks' 'tw:location' 'Disable location services' 'Blocks Windows location services and location access for apps.' $false 84
+Add-Row 'Tweaks' 'tw:finddevice' 'Disable Find My Device' 'Stops Windows from using device location for Find My Device.' $false 84
+Add-Row 'Tweaks' 'tw:edgebloat' 'Reduce Edge ads and suggestions' 'Turns off Edge ads, recommendations, sidebar and news suggestions.' $false 84
+
+Add-TweakSection 'System'
+Add-Row 'Tweaks' 'tw:notifications' 'Disable Windows notifications' 'Turns off notifications from Windows and apps. App notifications will stop appearing.' $false 84
+Add-Row 'Tweaks' 'tw:mouse' 'Disable mouse acceleration' 'Turns off Enhance pointer precision for consistent cursor movement.' $true
+Add-Row 'Tweaks' 'tw:faststartup' 'Disable fast start-up' 'Uses a full shutdown; the next boot may take slightly longer.' $false 84
+Add-Row 'Tweaks' 'tw:power' 'Ultimate Performance power plan' 'Unlocks and activates the high-performance plan; it uses more power.' $true 84
+Add-Row 'Tweaks' 'tw:notifsound' 'Mute notification sounds' 'Mutes Windows notification sounds. Apps with their own audio must be muted inside the app.' $true 84
+
+Add-TweakSection 'Windows Update'
+Add-Row 'Tweaks' 'tw:updateasap' 'Delay early feature updates' 'You still receive updates, but Windows will not place this PC in the earliest rollout group.' $false 84
+Add-Row 'Tweaks' 'tw:noreboot' 'Prevent automatic restart while signed in' 'Prevents Windows Update restarting automatically while a user is signed in.' $false 84
+Add-Row 'Tweaks' 'tw:driverupdates' 'Exclude drivers from Windows Update' 'Keeps driver updates out of regular Windows quality updates.' $false 84
+Add-Row 'Tweaks' 'tw:deliveryopt' 'Stop sharing updates with other PCs' 'Disables Delivery Optimization sharing and peer downloads.' $false 84
+Add-Row 'Tweaks' 'tw:deviceapps' 'Stop automatic device companion apps' 'Stops Windows automatically downloading companion apps for connected devices.' $false 84
+
+Add-TweakSection 'Taskbar & gaming'
+Add-Row 'Tweaks' 'tw:widgets' 'Disable taskbar widgets' 'Hides Widgets from the taskbar and lock screen.' $false 84
+Add-Row 'Tweaks' 'tw:chat' 'Hide Chat from the taskbar' 'Hides the Chat / Meet Now taskbar button.' $false
+Add-Row 'Tweaks' 'tw:taskview' 'Hide Task View from the taskbar' 'Hides the Task View button.' $false
+Add-Row 'Tweaks' 'tw:dvr' 'Disable game and screen recording' 'Turns off Xbox Game Bar background capture and recording.' $false 84
+Add-Row 'Tweaks' 'tw:gamebar' 'Disable Game Bar integration' 'Stops Game Bar popups for games and controllers.' $false 84
+
+Add-TweakSection 'Start & search'
+Add-Row 'Tweaks' 'tw:bing' 'Disable Bing and Copilot in search' 'Removes web results and Copilot integration from Windows Search.' $false 84
+
+Add-TweakSection 'Appearance'
 Add-Row 'Tweaks' 'tw:dark' 'Dark theme' 'Switches Windows and apps to dark mode.' $true
-Add-Row 'Tweaks' 'tw:power' 'Ultimate Performance power plan' 'Unlocks and activates the hidden plan. Uses more power, best for desktops.' $true
-Add-Row 'Tweaks' 'tw:telemetry' 'Reduce telemetry and ads' 'Minimum diagnostic data. Turns off advertising ID, tailored experiences, feedback prompts and Start menu suggestions. No services are disabled.' $true 84
-Add-Row 'Tweaks' 'tw:notifsound' 'Mute notification sounds' 'Turns off the sound of Windows notifications for every app, including the system notification sounds. Apps with their own sounds, like Discord, must be muted inside the app.' $true 84
-Add-Row 'Tweaks' 'tw:mouse' 'Disable "Enhance pointer precision"' 'Turns off mouse acceleration for consistent aim and cursor movement. Applies instantly.' $true
+Add-Row 'Tweaks' 'tw:transparency' 'Disable transparency effects' 'Turns off Windows transparency effects.' $false
+Add-Row 'Tweaks' 'tw:animations' 'Reduce animations and visual effects' 'Turns off window animations and some visual effects.' $false 84
+Add-Row 'Tweaks' 'tw:spotlight' 'Hide Spotlight desktop shortcut' 'Hides the “Learn about this picture” icon on the desktop.' $false 84
+
+Add-TweakSection 'Multi-tasking'
+Add-Row 'Tweaks' 'tw:snap' 'Disable window snapping' 'Turns off snapping windows to screen edges and Snap Assist suggestions.' $false 84
+
+Add-TweakSection 'File Explorer'
 Add-Row 'Tweaks' 'tw:explorer' 'File Explorer privacy' 'Stops Quick access from showing recent files and frequent folders.' $true
+Add-Row 'Tweaks' 'tw:extensions' 'Show file extensions' 'Shows extensions such as .txt and .jpg in File Explorer.' $false
+Add-Row 'Tweaks' 'tw:hiddenfiles' 'Show hidden files' 'Shows hidden files and protected system files in File Explorer.' $false 84
+
+Add-TweakSection 'Other'
+Add-Row 'Tweaks' 'tw:bravebloat' 'Disable Brave browser extras' 'Turns off Brave AI, Wallet, Rewards, Talk, VPN and News features.' $false 84
 
 Add-Row 'FiveM' 'fv:install' 'Install FiveM' 'Downloads FiveM from the official site, places it in %LocalAppData%\FiveM and creates shortcuts. The first launch finishes its own setup.' $true 84
 Add-Row 'FiveM' 'fv:config' 'Apply my FiveM settings' 'Copies gta5_settings.xml and fivem.cfg into %AppData%\CitizenFX and writes your graphics card into the settings file automatically. Existing files are backed up first.' $true 84
-
-Add-Row 'Debloat' 'bloat' 'Remove bloatware' ('Removes pre-installed apps for all users and stops them returning on new accounts: Xbox apps (Xbox, Game Bar overlay, identity), Phone Link / Cross Device, Mail and Calendar, new Outlook, Maps, Movies and TV, News, Weather, Tips, Get Help, Feedback Hub, People, Skype, Teams (personal), Clipchamp, Copilot, Dev Home, Power Automate, Mixed Reality, 3D Viewer, Paint 3D, To Do, Journal, Family, OneNote, Microsoft 365 hub and sponsored apps (Candy Crush, TikTok, Facebook, Instagram, Netflix, Disney+, Prime Video, LinkedIn, Twitter, Duolingo, Adobe Express, McAfee).' + "`r`n`r`nNever touched: Microsoft Store, Photos, Calculator, Terminal, Notepad, Edge, Windows Security and system components. Removing the Xbox apps can break Xbox sign-in for Store and Game Pass games.") $false 270
 
 $restore = New-Object FxRow
 $restore.Title = 'Create a restore point first'
@@ -876,11 +1109,11 @@ $form.Controls.Add($restore)
 $btnAll = New-Btn 'Select all' 'ghost' 460 ($H - 149) 104 36 'Bottom,Left'
 $btnNone = New-Btn 'Select none' 'ghost' 572 ($H - 149) 104 36 'Bottom,Left'
 $btnUndo = New-Btn 'Undo tweaks' 'ghost' 684 ($H - 149) 112 36 'Bottom,Left'
-$btnGo = New-Btn 'Install selected' 'primary' 816 ($H - 153) 200 44 'Bottom,Right'
+$btnGo = New-Btn 'Install selected' 'primary' 1016 ($H - 153) 200 44 'Bottom,Right'
 
 $bar = New-Object FxProgress
 $bar.Location = New-Object Drawing.Point(24, ($H - 86))
-$bar.Size = New-Object Drawing.Size(992, 3)
+$bar.Size = New-Object Drawing.Size(1192, 3)
 $bar.Anchor = 'Bottom,Left,Right'
 $form.Controls.Add($bar)
 
@@ -893,10 +1126,120 @@ $txt.ForeColor = [Drawing.Color]::FromArgb(150, 156, 168)
 $txt.BorderStyle = 'None'
 $txt.Font = New-Object Drawing.Font('Consolas', 9)
 $txt.Location = New-Object Drawing.Point(24, ($H - 76))
-$txt.Size = New-Object Drawing.Size(992, 66)
+$txt.Size = New-Object Drawing.Size(1192, 66)
 $txt.Anchor = 'Bottom,Left,Right'
 $form.Controls.Add($txt)
 try { [W.U]::SetWindowTheme($txt.Handle, 'DarkMode_Explorer', $null) | Out-Null } catch { }
+
+$debloatPanel = $Flows['Debloat']
+$debloatSelectRecommended = New-Object FxButton
+$debloatSelectRecommended.Text = 'Select recommended'
+$debloatSelectRecommended.Style = 'ghost'
+$debloatSelectRecommended.Location = New-Object Drawing.Point(0, 4)
+$debloatSelectRecommended.Size = New-Object Drawing.Size(190, 36)
+$debloatPanel.Controls.Add($debloatSelectRecommended)
+$debloatSelectOptional = New-Object FxButton
+$debloatSelectOptional.Text = 'Select optional'
+$debloatSelectOptional.Style = 'ghost'
+$debloatSelectOptional.Location = New-Object Drawing.Point(198, 4)
+$debloatSelectOptional.Size = New-Object Drawing.Size(164, 36)
+$debloatPanel.Controls.Add($debloatSelectOptional)
+$debloatClear = New-Object FxButton
+$debloatClear.Text = 'Clear selection'
+$debloatClear.Style = 'ghost'
+$debloatClear.Location = New-Object Drawing.Point(370, 4)
+$debloatClear.Size = New-Object Drawing.Size(170, 36)
+$debloatPanel.Controls.Add($debloatClear)
+$script:DebloatOnlyInstalled = New-Object Windows.Forms.CheckBox
+$script:DebloatOnlyInstalled.Text = 'Only show installed apps'
+$script:DebloatOnlyInstalled.Location = New-Object Drawing.Point(554, 10)
+$script:DebloatOnlyInstalled.Size = New-Object Drawing.Size(205, 28)
+$script:DebloatOnlyInstalled.ForeColor = [Drawing.Color]::White
+$script:DebloatOnlyInstalled.BackColor = [Drawing.Color]::Black
+$debloatPanel.Controls.Add($script:DebloatOnlyInstalled)
+$script:DebloatSearch = New-Object Windows.Forms.TextBox
+$script:DebloatSearch.Text = 'Search apps...'
+$script:DebloatSearch.Location = New-Object Drawing.Point(875, 5)
+$script:DebloatSearch.Size = New-Object Drawing.Size(300, 32)
+$script:DebloatSearch.BackColor = [Drawing.Color]::FromArgb(42, 42, 42)
+$script:DebloatSearch.ForeColor = [Drawing.Color]::White
+$script:DebloatSearch.BorderStyle = 'FixedSingle'
+$debloatPanel.Controls.Add($script:DebloatSearch)
+$script:DebloatGrid = New-Object Windows.Forms.DataGridView
+$script:DebloatGrid.Location = New-Object Drawing.Point(0, 52)
+$script:DebloatGrid.Size = New-Object Drawing.Size(1184, 448)
+$script:DebloatGrid.Anchor = 'Top,Bottom,Left,Right'
+$script:DebloatGrid.AllowUserToAddRows = $false
+$script:DebloatGrid.AllowUserToDeleteRows = $false
+$script:DebloatGrid.AllowUserToResizeRows = $false
+$script:DebloatGrid.AutoGenerateColumns = $false
+$script:DebloatGrid.MultiSelect = $false
+$script:DebloatGrid.RowHeadersVisible = $false
+$script:DebloatGrid.SelectionMode = 'FullRowSelect'
+$script:DebloatGrid.BackgroundColor = [Drawing.Color]::FromArgb(12, 12, 12)
+$script:DebloatGrid.GridColor = [Drawing.Color]::FromArgb(58, 58, 58)
+$script:DebloatGrid.BorderStyle = 'FixedSingle'
+$script:DebloatGrid.EnableHeadersVisualStyles = $false
+$script:DebloatGrid.ColumnHeadersDefaultCellStyle.BackColor = [Drawing.Color]::FromArgb(38, 38, 38)
+$script:DebloatGrid.ColumnHeadersDefaultCellStyle.ForeColor = [Drawing.Color]::White
+$script:DebloatGrid.ColumnHeadersDefaultCellStyle.SelectionBackColor = [Drawing.Color]::FromArgb(38, 38, 38)
+$script:DebloatGrid.ColumnHeadersHeight = 38
+$script:DebloatGrid.DefaultCellStyle.BackColor = [Drawing.Color]::FromArgb(24, 24, 24)
+$script:DebloatGrid.DefaultCellStyle.ForeColor = [Drawing.Color]::White
+$script:DebloatGrid.DefaultCellStyle.SelectionBackColor = [Drawing.Color]::FromArgb(47, 47, 47)
+$script:DebloatGrid.DefaultCellStyle.SelectionForeColor = [Drawing.Color]::White
+$script:DebloatGrid.AlternatingRowsDefaultCellStyle.BackColor = [Drawing.Color]::FromArgb(29, 29, 29)
+$script:DebloatGrid.RowTemplate.Height = 34
+$checkColumn = New-Object Windows.Forms.DataGridViewCheckBoxColumn
+$checkColumn.HeaderText = ''
+$checkColumn.Width = 34
+$checkColumn.SortMode = 'NotSortable'
+$null = $script:DebloatGrid.Columns.Add($checkColumn)
+foreach ($column in @(@('Name', 205), @('Description', 425), @('App ID', 340), @('Type', 104), @('Installed', 76))) {
+    $c = New-Object Windows.Forms.DataGridViewTextBoxColumn
+    $c.Name = $column[0]
+    $c.HeaderText = $column[0]
+    $c.Width = $column[1]
+    $c.ReadOnly = $true
+    $c.SortMode = 'NotSortable'
+    $null = $script:DebloatGrid.Columns.Add($c)
+}
+$debloatPanel.Controls.Add($script:DebloatGrid)
+$script:DebloatStatus = New-Object Windows.Forms.Label
+$script:DebloatStatus.Location = New-Object Drawing.Point(4, 510)
+$script:DebloatStatus.Size = New-Object Drawing.Size(1180, 30)
+$script:DebloatStatus.ForeColor = [Drawing.Color]::FromArgb(180, 188, 200)
+$script:DebloatStatus.Text = 'Loading Recommended and Optional apps...'
+$debloatPanel.Controls.Add($script:DebloatStatus)
+
+$script:DebloatOnlyInstalled.Add_CheckedChanged({ Update-DebloatRows })
+$script:DebloatSearch.Add_Enter({ if ($script:DebloatSearch.Text -eq 'Search apps...') { $script:DebloatSearch.Text = '' } })
+$script:DebloatSearch.Add_Leave({ if (-not $script:DebloatSearch.Text.Trim()) { $script:DebloatSearch.Text = 'Search apps...' } })
+$script:DebloatSearch.Add_TextChanged({ Update-DebloatRows })
+$script:DebloatGrid.Add_CurrentCellDirtyStateChanged({
+        if ($script:DebloatGrid.IsCurrentCellDirty) { $script:DebloatGrid.CommitEdit([Windows.Forms.DataGridViewDataErrorContexts]::Commit) }
+    })
+$script:DebloatGrid.Add_CellValueChanged({ Update-DebloatStatus })
+$debloatSelectRecommended.Add_Click({ foreach ($r in $script:DebloatGrid.Rows) { $r.Cells[0].Value = ($r.Tag.Recommendation -eq 'Recommended') } })
+$debloatSelectOptional.Add_Click({ foreach ($r in $script:DebloatGrid.Rows) { $r.Cells[0].Value = ($r.Tag.Recommendation -eq 'Optional') } })
+$debloatClear.Add_Click({ foreach ($r in $script:DebloatGrid.Rows) { $r.Cells[0].Value = $false } })
+
+function Load-DebloatUi {
+    $script:DebloatCatalog = @(Get-DebloatCatalog)
+    $script:DebloatGrid.Rows.Clear()
+    foreach ($app in $script:DebloatCatalog) {
+        $idx = $script:DebloatGrid.Rows.Add($app.Selected, $app.Name, $app.Description, ($app.AppIds -join ', '), $app.Recommendation, $(if ($app.Installed) { 'Yes' } else { 'No' }))
+        $script:DebloatGrid.Rows[$idx].Tag = $app
+        if ($app.Recommendation -eq 'Recommended') {
+            $script:DebloatGrid.Rows[$idx].Cells[4].Style.ForeColor = [Drawing.Color]::FromArgb(104, 194, 126)
+        }
+        else {
+            $script:DebloatGrid.Rows[$idx].Cells[4].Style.ForeColor = [Drawing.Color]::FromArgb(246, 190, 62)
+        }
+    }
+    Update-DebloatRows
+    if (-not $script:DebloatCatalog.Count) { $script:DebloatStatus.Text = 'App catalog unavailable. Connect to the internet and reopen deep.' }
+}
 
 $btnAll.Add_Click({ foreach ($k in $TabKeys[$script:CurrentTab]) { $Checks[$k].Checked = $true } })
 $btnNone.Add_Click({ foreach ($k in $TabKeys[$script:CurrentTab]) { $Checks[$k].Checked = $false } })
@@ -908,8 +1251,14 @@ $btnUndo.Add_Click({
 $btnGo.Add_Click({
         if ($script:Busy) { return }
         $tab = $script:CurrentTab
-        $selected = @($TabKeys[$tab] | Where-Object { $Checks[$_].Checked })
-        if (-not $selected) {
+        $selectedDebloat = @()
+        if ($tab -eq 'Debloat') {
+            if ($script:DebloatGrid.IsCurrentCellDirty) { $script:DebloatGrid.CommitEdit([Windows.Forms.DataGridViewDataErrorContexts]::Commit) }
+            $selectedDebloat = @($script:DebloatGrid.Rows | Where-Object { [bool]$_.Cells[0].Value } | ForEach-Object { $_.Tag })
+            $selected = @('debloat:apps')
+        }
+        else { $selected = @($TabKeys[$tab] | Where-Object { $Checks[$_].Checked }) }
+        if (($tab -eq 'Debloat' -and -not $selectedDebloat.Count) -or ($tab -ne 'Debloat' -and -not $selected.Count)) {
             Write-Log "Nothing selected on the $tab page."
             return
         }
@@ -942,7 +1291,9 @@ $btnGo.Add_Click({
                 if ($selected -contains 'fv:config') { $steps += @{ Label = 'Applying FiveM settings'; Action = { Install-FiveMConfig } } }
             }
             'Debloat' {
-                $steps += @{ Label = 'Removing bloatware'; Action = { Remove-Bloat } }
+                foreach ($app in $selectedDebloat) {
+                    $steps += @{ Label = "Removing app: $($app.Name)"; Action = { Remove-DebloatApp $app }.GetNewClosure() }
+                }
             }
         }
 
@@ -955,10 +1306,21 @@ $btnGo.Add_Click({
         }
         Write-Log 'Finished.'
         if ($tab -eq 'Apps') { Write-Log "Installers were saved in $Dl" }
+        if ($tab -eq 'Debloat') {
+            foreach ($app in $selectedDebloat) {
+                $app.Installed = $false
+                foreach ($r in $script:DebloatGrid.Rows) {
+                    if ($r.Tag -eq $app) { $r.Cells[0].Value = $false; $r.Cells[5].Value = 'No' }
+                }
+            }
+            Update-DebloatRows
+        }
         $script:Busy = $false
         $btnGo.Enabled = $true
 
-        if ($selected -contains 'tw:dark' -or $selected -contains 'tw:explorer' -or $tab -eq 'Debloat') {
+        $restartKeys = @('tw:dark', 'tw:explorer', 'tw:widgets', 'tw:chat', 'tw:taskview', 'tw:extensions', 'tw:hiddenfiles', 'tw:spotlight', 'tw:transparency', 'tw:animations')
+        $needsExplorerRestart = @($restartKeys | Where-Object { $selected -contains $_ }).Count -gt 0
+        if ($needsExplorerRestart -or $tab -eq 'Debloat') {
             $ans = [Windows.Forms.MessageBox]::Show('Restart File Explorer now to apply the changes? Your taskbar will flicker for a second. Signing out also works.', 'deep', 'YesNo', 'Question')
             if ($ans -eq 'Yes') { Stop-Process -Name explorer -Force }
         }
@@ -968,6 +1330,7 @@ $form.Add_Shown({
         Apply-Theme 'Snow'
         Show-Tab 'Apps'
         Write-Log "deep v$Version ready. Only the page you are on is applied."
+        Load-DebloatUi
     })
 
 [void]$form.ShowDialog()
