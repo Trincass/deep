@@ -10,12 +10,6 @@ Open PowerShell and paste:
 irm https://raw.githubusercontent.com/Trincass/deep/main/setup.ps1 | iex
 ```
 
-From CMD:
-
-```
-powershell -NoProfile -Command "irm https://raw.githubusercontent.com/Trincass/deep/main/setup.ps1 | iex"
-```
-
 It asks for administrator rights by itself and always runs the latest version from this repository.
 
 ## Features
