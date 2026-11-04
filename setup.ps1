@@ -1,4 +1,4 @@
-$Version = '1.4.5'
+$Version = '1.4.6'
 $Repo = 'Trincass/deep'
 $Branch = 'main'
 $FiveMBranch = 'fivem'
@@ -94,7 +94,9 @@ public class FxForm : Form
         timer.Tick += delegate
         {
             Step();
-            if (Mode != "off" && WindowState != FormWindowState.Minimized) Invalidate(true);
+            // Redraw only the animated form background. Invalidating every child
+            // control at 25 FPS makes the tabs and Debloat grid flicker while switching.
+            if (Mode != "off" && WindowState != FormWindowState.Minimized) Invalidate();
         };
         timer.Start();
     }
@@ -1031,7 +1033,7 @@ function Add-TweakSection($title) {
     $label.Text = $title.ToUpperInvariant()
     $label.ForeColor = [Drawing.Color]::FromArgb(190, 198, 210)
     $label.Font = New-Object Drawing.Font('Segoe UI Semibold', 9.5)
-    $label.Size = New-Object Drawing.Size(1150, 30)
+    $label.Size = New-Object Drawing.Size([Math]::Max(320, $Flows['Tweaks'].ClientSize.Width - 28), 30)
     $label.Margin = New-Object Windows.Forms.Padding(2, 10, 2, 0)
     $Flows['Tweaks'].Controls.Add($label)
 }
@@ -1095,6 +1097,22 @@ Add-Row 'Tweaks' 'tw:hiddenfiles' 'Show hidden files' 'Shows hidden files and pr
 
 Add-TweakSection 'Other'
 Add-Row 'Tweaks' 'tw:bravebloat' 'Disable Brave browser extras' 'Turns off Brave AI, Wallet, Rewards, Talk, VPN and News features.' $false 84
+
+# Keep the tweak cards in three roomy columns and recompute their widths when
+# the window is resized or maximized. Section headers always span the full row.
+$script:LayoutTweakCards = {
+        if (-not $Flows['Tweaks']) { return }
+        $tweaks = $Flows['Tweaks']
+        $available = [Math]::Max(320, $tweaks.ClientSize.Width - 28)
+        $columns = [Math]::Min(3, [Math]::Max(1, [Math]::Floor(($available + 10) / 370)))
+        $cardWidth = [Math]::Max(320, [Math]::Floor(($available - (($columns - 1) * 10)) / $columns))
+        foreach ($control in $tweaks.Controls) {
+            if ($control -is [FxRow]) { $control.Width = $cardWidth }
+            elseif ($control -is [Windows.Forms.Label]) { $control.Width = $available }
+        }
+        $tweaks.PerformLayout()
+    }
+$form.Add_Resize($script:LayoutTweakCards)
 
 Add-Row 'FiveM' 'fv:install' 'Install FiveM' 'Downloads FiveM from the official site, places it in %LocalAppData%\FiveM and creates shortcuts. The first launch finishes its own setup.' $true 84
 Add-Row 'FiveM' 'fv:config' 'Apply my FiveM settings' 'Copies gta5_settings.xml and fivem.cfg into %AppData%\CitizenFX and writes your graphics card into the settings file automatically. Existing files are backed up first.' $true 84
@@ -1331,6 +1349,7 @@ $btnGo.Add_Click({
     })
 
 $form.Add_Shown({
+        & $script:LayoutTweakCards
         Apply-Theme 'Snow'
         Show-Tab 'Apps'
         Write-Log "deep v$Version ready. Only the page you are on is applied."
