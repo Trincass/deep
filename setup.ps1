@@ -1,4 +1,4 @@
-$Version = '1.3.0'
+$Version = '1.3.5'
 $Repo = 'Trincass/deep'
 $Branch = 'main'
 $FiveMBranch = 'fivem'
