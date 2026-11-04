@@ -1,4 +1,4 @@
-$Version = '1.1.0'
+$Version = '1.2.0'
 $Repo = 'Trincass/deep'
 $Branch = 'main'
 $Raw = "https://raw.githubusercontent.com/$Repo/$Branch/setup.ps1"
@@ -9,29 +9,18 @@ $ProgressPreference = 'SilentlyContinue'
 
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) {
-    if ($PSCommandPath) {
-        Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`""
-    }
-    else {
-        Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', "irm $Raw | iex"
-    }
+    Write-Host ''
+    Write-Host 'deep needs administrator rights and was not started.' -ForegroundColor Red
+    Write-Host 'Close this window, open PowerShell with right click > Run as administrator, and paste the command again.' -ForegroundColor Yellow
     return
 }
 
 if ($Repo -notlike 'YOUR_USER*') {
     try {
         $remote = (Invoke-WebRequest "$Raw`?t=$([DateTime]::UtcNow.Ticks)" -UseBasicParsing -TimeoutSec 8).Content
-        if ($remote -match "\`$Version\s*=\s*'([\d\.]+)'") {
-            if ([version]$Matches[1] -gt [version]$Version) {
-                if ($PSCommandPath) {
-                    Set-Content -Path $PSCommandPath -Value $remote -Encoding UTF8
-                    Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`""
-                }
-                else {
-                    Invoke-Expression $remote
-                }
-                return
-            }
+        if ($remote -match "\`$Version\s*=\s*'([\d\.]+)'" -and [version]$Matches[1] -gt [version]$Version) {
+            Write-Host "A newer version of deep ($($Matches[1])) is available. Run the command from the README again to use it." -ForegroundColor Yellow
+            return
         }
     }
     catch { }
@@ -586,6 +575,50 @@ function Install-Gpu {
     }
 }
 
+function Get-GpuName {
+    $names = @(Get-CimInstance Win32_VideoController | ForEach-Object { $_.Name } | Where-Object { $_ -and $_ -notmatch 'Microsoft|Remote|Virtual|Parsec|Citrix|Basic' })
+    $pick = $names | Where-Object { $_ -match 'NVIDIA' } | Select-Object -First 1
+    if (-not $pick) { $pick = $names | Where-Object { $_ -match 'Radeon (RX|PRO|VII)' } | Select-Object -First 1 }
+    if (-not $pick) { $pick = $names | Select-Object -First 1 }
+    $pick
+}
+
+function Install-FiveMConfig {
+    $dest = Join-Path $env:APPDATA 'CitizenFX'
+    New-Item -ItemType Directory -Force $dest | Out-Null
+    if (Get-Process -Name 'FiveM*' -ErrorAction SilentlyContinue) {
+        Write-Log 'FiveM is running. Close it first, or it may overwrite these files when it exits.'
+    }
+    $base = "https://raw.githubusercontent.com/$Repo/$Branch/fivem"
+    $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+    foreach ($name in 'gta5_settings.xml', 'fivem.cfg') {
+        $src = $null
+        if ($PSScriptRoot) {
+            $local = Join-Path $PSScriptRoot "fivem\$name"
+            if (Test-Path $local) { $src = $local }
+        }
+        if (-not $src) {
+            if ($Repo -like 'YOUR_USER*') { throw 'The repository name is not set in setup.ps1 (line 2).' }
+            $src = Get-File "$base/$name" $name
+        }
+        $text = [IO.File]::ReadAllText($src)
+        if ($name -eq 'gta5_settings.xml') {
+            $gpu = Get-GpuName
+            if ($gpu) {
+                $text = $text -replace '(<VideoCardDescription>).*?(</VideoCardDescription>)', ('${1}' + $gpu + '${2}')
+                Write-Log "Graphics card set to: $gpu"
+            }
+        }
+        else {
+            $text = $text -replace '(?m)^seta "cl_nickname".*\r?\n', ''
+        }
+        $target = Join-Path $dest $name
+        if (Test-Path $target) { Copy-Item $target "$target.bak-$stamp" -Force }
+        [IO.File]::WriteAllText($target, $text, (New-Object Text.UTF8Encoding($false)))
+        Write-Log "Placed $name in $dest"
+    }
+}
+
 function Load-Backup {
     if (Test-Path $BackupFile) { @(Get-Content $BackupFile -Raw | ConvertFrom-Json) } else { @() }
 }
@@ -635,6 +668,13 @@ $TweakActions = @{
         $cd = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'
         foreach ($n in 'SilentInstalledAppsEnabled', 'SystemPaneSuggestionsEnabled', 'SubscribedContent-338388Enabled', 'SubscribedContent-338389Enabled', 'SubscribedContent-353694Enabled', 'SubscribedContent-353696Enabled') {
             Set-Reg $cd $n 0
+        }
+    }
+    notifsound = {
+        Set-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings' 'NOC_GLOBAL_SETTING_ALLOW_NOTIFICATION_SOUND' 0
+        foreach ($ev in 'Notification.Default', 'Notification.IM', 'Notification.Mail', 'Notification.Reminder', 'Notification.SMS') {
+            $p = "HKCU:\AppEvents\Schemes\Apps\.Default\$ev\.Current"
+            if (Test-Path $p) { Set-Reg $p '(default)' '' 'String' }
         }
     }
     mouse     = {
@@ -702,7 +742,7 @@ function Undo-Tweaks {
 }
 
 $Themes = @{ 'Snow' = 'snow'; 'Rain' = 'rain'; 'Off' = 'off' }
-$PrimaryText = @{ Apps = 'Install selected'; Drivers = 'Install drivers'; Tweaks = 'Apply tweaks'; Debloat = 'Remove bloatware' }
+$PrimaryText = @{ Apps = 'Install selected'; Drivers = 'Install drivers'; Tweaks = 'Apply tweaks'; FiveM = 'Apply FiveM setup'; Debloat = 'Remove bloatware' }
 $H = 780
 
 $form = New-Object FxForm
@@ -715,7 +755,7 @@ $form.Title = 'deep'
 $form.Sub = "Windows 10 / 11 post-install setup   |   v$Version"
 
 $Checks = @{}
-$TabKeys = @{ Apps = @(); Drivers = @(); Tweaks = @(); Debloat = @() }
+$TabKeys = @{ Apps = @(); Drivers = @(); Tweaks = @(); FiveM = @(); Debloat = @() }
 $Flows = @{}
 $NavBtns = @{}
 $ChipBtns = @{}
@@ -757,7 +797,7 @@ function Apply-Theme($n) {
 }
 
 $i = 0
-foreach ($n in 'Apps', 'Drivers', 'Tweaks', 'Debloat') {
+foreach ($n in 'Apps', 'Drivers', 'Tweaks', 'FiveM', 'Debloat') {
     $f = New-Object Windows.Forms.FlowLayoutPanel
     $f.Location = New-Object Drawing.Point(236, 118)
     $f.Size = New-Object Drawing.Size(790, 482)
@@ -799,7 +839,6 @@ function Add-Row($tab, $key, $title, $desc, $on, $height = 78) {
     $TabKeys[$tab] += $key
 }
 
-Add-Row 'Apps' 'app:fivem' 'FiveM' 'GTA V multiplayer client. Placed in %LocalAppData%\FiveM with shortcuts; the first launch finishes its own setup.' $false
 Add-Row 'Apps' 'app:rockstar' 'Rockstar Games Launcher' 'Official launcher for GTA V and Red Dead Redemption 2. Silent install.' $false
 Add-Row 'Apps' 'app:epic' 'Epic Games Launcher' 'Epic store and launcher, installed from the official Epic MSI.' $false
 Add-Row 'Apps' 'app:steam' 'Steam' 'Valve game store and launcher, installed from the official Steam CDN.' $false
@@ -815,8 +854,12 @@ Add-Row 'Drivers' 'drv:gpu' 'Graphics drivers' 'Picks the right package for your
 Add-Row 'Tweaks' 'tw:dark' 'Dark theme' 'Switches Windows and apps to dark mode.' $true
 Add-Row 'Tweaks' 'tw:power' 'Ultimate Performance power plan' 'Unlocks and activates the hidden plan. Uses more power, best for desktops.' $true
 Add-Row 'Tweaks' 'tw:telemetry' 'Reduce telemetry and ads' 'Minimum diagnostic data. Turns off advertising ID, tailored experiences, feedback prompts and Start menu suggestions. No services are disabled.' $true 84
+Add-Row 'Tweaks' 'tw:notifsound' 'Mute notification sounds' 'Turns off the sound of Windows notifications for every app, including the system notification sounds. Apps with their own sounds, like Discord, must be muted inside the app.' $true 84
 Add-Row 'Tweaks' 'tw:mouse' 'Disable "Enhance pointer precision"' 'Turns off mouse acceleration for consistent aim and cursor movement. Applies instantly.' $true
 Add-Row 'Tweaks' 'tw:explorer' 'File Explorer privacy' 'Stops Quick access from showing recent files and frequent folders.' $true
+
+Add-Row 'FiveM' 'fv:install' 'Install FiveM' 'Downloads FiveM from the official site, places it in %LocalAppData%\FiveM and creates shortcuts. The first launch finishes its own setup.' $true 84
+Add-Row 'FiveM' 'fv:config' 'Apply my FiveM settings' 'Copies gta5_settings.xml and fivem.cfg into %AppData%\CitizenFX and writes your graphics card into the settings file automatically. Existing files are backed up first.' $true 84
 
 Add-Row 'Debloat' 'bloat' 'Remove bloatware' ('Removes pre-installed apps for all users and stops them returning on new accounts: Xbox apps (Xbox, Game Bar overlay, identity), Phone Link / Cross Device, Mail and Calendar, new Outlook, Maps, Movies and TV, News, Weather, Tips, Get Help, Feedback Hub, People, Skype, Teams (personal), Clipchamp, Copilot, Dev Home, Power Automate, Mixed Reality, 3D Viewer, Paint 3D, To Do, Journal, Family, OneNote, Microsoft 365 hub and sponsored apps (Candy Crush, TikTok, Facebook, Instagram, Netflix, Disney+, Prime Video, LinkedIn, Twitter, Duolingo, Adobe Express, McAfee).' + "`r`n`r`nNever touched: Microsoft Store, Photos, Calculator, Terminal, Notepad, Edge, Windows Security and system components. Removing the Xbox apps can break Xbox sign-in for Store and Game Pass games.") $false 270
 
@@ -892,6 +935,10 @@ $btnGo.Add_Click({
                     $key = $k.Substring(3)
                     $steps += @{ Label = "Tweak: $key"; Action = $TweakActions[$key] }
                 }
+            }
+            'FiveM' {
+                if ($selected -contains 'fv:install') { $steps += @{ Label = 'Installing FiveM'; Action = { Install-App 'fivem' } } }
+                if ($selected -contains 'fv:config') { $steps += @{ Label = 'Applying FiveM settings'; Action = { Install-FiveMConfig } } }
             }
             'Debloat' {
                 $steps += @{ Label = 'Removing bloatware'; Action = { Remove-Bloat } }
