@@ -24,7 +24,7 @@ Open-source setup tool for Windows 10 and 11. After a fresh install, run one com
 Open **CMD** and run (replace `YOUR_USER` with your GitHub username):
 
 ```
-powershell -NoProfile -Command "Start-Process powershell -Verb RunAs -ArgumentList '-NoExit','-NoProfile','-ExecutionPolicy','Bypass','-Command','irm https://raw.githubusercontent.com/YOUR_USER/deep/main/setup.ps1 | iex'"
+powershell -NoProfile -Command "Start-Process powershell -Verb RunAs -ArgumentList '-NoExit','-NoProfile','-ExecutionPolicy','Bypass','-Command','irm https://raw.githubusercontent.com/Trincass/deep/main/setup.ps1 | iex'"
 ```
 
 A UAC prompt will appear, then the menu opens in an elevated PowerShell window.
