@@ -19,9 +19,9 @@ Each page applies only its own selection. The button at the bottom right acts on
 
 - **Apps:** Rockstar Games Launcher, Epic Games Launcher, Steam, Discord, Brave, Everything, Detect It Easy (DIE), OBS Studio. Downloaded from the official sources and installed silently. Installers are kept in `Downloads\deep`.
 - **Drivers:** CPU/chipset and graphics drivers, picked automatically for your hardware.
-- **Tweaks:** grouped Windows privacy, update, taskbar, gaming, search, appearance, multitasking and File Explorer options. Existing tweaks can be undone from the app; new options are off until selected.
+- **Tweaks:** grouped Windows privacy, update, taskbar, gaming, search, appearance, multitasking and File Explorer options. Existing tweaks can be undone from the app, restoring original registry value types and removing keys created by deep; new options are off until selected.
 - **FiveM:** installs FiveM and places `gta5_settings.xml` and `fivem.cfg` in `%AppData%\CitizenFX`. Your graphics card is detected and written into the settings file. Existing files are backed up with a timestamp.
-- **Debloat:** searchable app catalog with Recommended and Optional classifications, descriptions, installed-app filtering and individual selection. Recommended apps follow the catalog defaults; Optional apps start unselected. Apps marked Not Recommended by the catalog are excluded.
+- **Debloat:** searchable app catalog with Recommended and Optional classifications, descriptions, installed-app filtering and individual selection. Catalog loading runs in the background. A selected app is marked removed only when its uninstall command succeeds. Recommended apps follow the catalog defaults; Optional apps start unselected. Apps marked Not Recommended by the catalog are excluded.
 - **Themes:** snow, rain or off. Black background with white falling particles.
 
 ## Repository layout
