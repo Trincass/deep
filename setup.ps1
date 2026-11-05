@@ -1,4 +1,4 @@
-$Version = '1.4.8'
+$Version = '1.4.9'
 $Repo = 'Trincass/deep'
 $Branch = 'main'
 $FiveMBranch = 'fivem'
@@ -90,7 +90,7 @@ public class FxForm : Form
             brushes[i] = new SolidBrush(Color.FromArgb(levels[i], 255, 255, 255));
             pens[i] = new Pen(Color.FromArgb(levels[i] - 20, 255, 255, 255), 1f);
         }
-        timer.Interval = 40;
+        timer.Interval = 60;
         timer.Tick += delegate
         {
             Step();
@@ -150,7 +150,7 @@ public class FxForm : Form
     void Step()
     {
         if (ClientSize.Width < 10 || ClientSize.Height < 10) return;
-        int target = Mode == "snow" ? 140 : (Mode == "rain" ? 180 : 0);
+        int target = Mode == "snow" ? 100 : (Mode == "rain" ? 90 : 0);
         while (list.Count < target) list.Add(Make(true));
         while (list.Count > target) list.RemoveAt(list.Count - 1);
         foreach (Particle p in list)
@@ -769,6 +769,8 @@ $script:DebloatGrid = $null
 $script:DebloatSearch = $null
 $script:DebloatOnlyInstalled = $null
 $script:DebloatStatus = $null
+$script:DebloatBatchUpdate = $false
+$script:DebloatSearchTimer = $null
 
 function Test-ProtectedDebloatApp($app) {
     # Never offer Windows runtimes or common development tools for removal.
@@ -859,7 +861,7 @@ function Update-DebloatRows {
 }
 
 function Update-DebloatStatus {
-    if (-not $script:DebloatStatus -or -not $script:DebloatGrid) { return }
+    if ($script:DebloatBatchUpdate -or -not $script:DebloatStatus -or -not $script:DebloatGrid) { return }
     $selectedCount = 0
     $shownCount = 0
     foreach ($row in $script:DebloatGrid.Rows) {
@@ -873,7 +875,14 @@ function Toggle-DebloatGroup($recommendation) {
     $rows = @($script:DebloatGrid.Rows | Where-Object { $_.Tag.Recommendation -eq $recommendation })
     if (-not $rows.Count) { return }
     $allSelected = @($rows | Where-Object { -not [bool]$_.Cells[0].Value }).Count -eq 0
-    foreach ($row in $rows) { $row.Cells[0].Value = -not $allSelected }
+    $script:DebloatBatchUpdate = $true
+    $script:DebloatGrid.SuspendLayout()
+    try { foreach ($row in $rows) { $row.Cells[0].Value = -not $allSelected } }
+    finally {
+        $script:DebloatGrid.ResumeLayout()
+        $script:DebloatBatchUpdate = $false
+        Update-DebloatStatus
+    }
 }
 
 function Test-DebloatAppInstalled($app, $appxPackages, $provisionedPackages, $wingetList) {
@@ -1268,14 +1277,26 @@ $debloatPanel.Controls.Add($script:DebloatStatus)
 $script:DebloatOnlyInstalled.Add_CheckedChanged({ Update-DebloatRows })
 $script:DebloatSearch.Add_Enter({ if ($script:DebloatSearch.Text -eq 'Search apps...') { $script:DebloatSearch.Text = '' } })
 $script:DebloatSearch.Add_Leave({ if (-not $script:DebloatSearch.Text.Trim()) { $script:DebloatSearch.Text = 'Search apps...' } })
-$script:DebloatSearch.Add_TextChanged({ Update-DebloatRows })
+$script:DebloatSearchTimer = New-Object Windows.Forms.Timer
+$script:DebloatSearchTimer.Interval = 250
+$script:DebloatSearchTimer.Add_Tick({ $script:DebloatSearchTimer.Stop(); Update-DebloatRows })
+$script:DebloatSearch.Add_TextChanged({ $script:DebloatSearchTimer.Stop(); $script:DebloatSearchTimer.Start() })
 $script:DebloatGrid.Add_CurrentCellDirtyStateChanged({
         if ($script:DebloatGrid.IsCurrentCellDirty) { $script:DebloatGrid.CommitEdit([Windows.Forms.DataGridViewDataErrorContexts]::Commit) }
     })
 $script:DebloatGrid.Add_CellValueChanged({ Update-DebloatStatus })
 $debloatSelectRecommended.Add_Click({ Toggle-DebloatGroup 'Recommended' })
 $debloatSelectOptional.Add_Click({ Toggle-DebloatGroup 'Optional' })
-$debloatClear.Add_Click({ foreach ($r in $script:DebloatGrid.Rows) { $r.Cells[0].Value = $false } })
+$debloatClear.Add_Click({
+        $script:DebloatBatchUpdate = $true
+        $script:DebloatGrid.SuspendLayout()
+        try { foreach ($r in $script:DebloatGrid.Rows) { $r.Cells[0].Value = $false } }
+        finally {
+            $script:DebloatGrid.ResumeLayout()
+            $script:DebloatBatchUpdate = $false
+            Update-DebloatStatus
+        }
+    })
 
 function Load-DebloatUi {
     $script:DebloatCatalog = @(Get-DebloatCatalog)
