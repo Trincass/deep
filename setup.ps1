@@ -1,4 +1,4 @@
-$Version = '1.4.9'
+$Version = '1.5.0'
 $Repo = 'Trincass/deep'
 $Branch = 'main'
 $FiveMBranch = 'fivem'
@@ -485,6 +485,49 @@ $AppDefs = [ordered]@{
     }
 }
 
+function Install-ZipApp($ArchivePath, $Destination, $ExeName, $AppName) {
+    $parent = Split-Path -Parent $Destination
+    $stage = Join-Path $parent ('.deep-stage-' + [guid]::NewGuid().ToString('N'))
+    $backup = "$Destination.deep-backup-$([guid]::NewGuid().ToString('N'))"
+    $oldMoved = $false
+    try {
+        Expand-Archive -Path $ArchivePath -DestinationPath $stage -Force -ErrorAction Stop
+        $stagedExe = Get-ChildItem $stage -Recurse -Filter $ExeName -File -ErrorAction Stop | Select-Object -First 1
+        if (-not $stagedExe) { throw "$AppName archive does not contain $ExeName." }
+
+        if (Test-Path -LiteralPath $Destination) {
+            Move-Item -LiteralPath $Destination -Destination $backup -ErrorAction Stop
+            $oldMoved = $true
+        }
+        try {
+            Move-Item -LiteralPath $stage -Destination $Destination -ErrorAction Stop
+            $exe = Get-ChildItem $Destination -Recurse -Filter $ExeName -File -ErrorAction Stop | Select-Object -First 1
+            if (-not $exe) { throw "$AppName executable was missing after installation." }
+            New-Shortcut $exe.FullName $AppName
+        }
+        catch {
+            if (Test-Path -LiteralPath $Destination) { Remove-Item -LiteralPath $Destination -Recurse -Force -ErrorAction Stop }
+            if ($oldMoved -and (Test-Path -LiteralPath $backup)) {
+                Move-Item -LiteralPath $backup -Destination $Destination -ErrorAction Stop
+                $oldMoved = $false
+            }
+            throw
+        }
+        if ($oldMoved) {
+            try { Remove-Item -LiteralPath $backup -Recurse -Force -ErrorAction Stop }
+            catch { Write-Log "Installed $AppName, but could not remove its temporary backup: $($_.Exception.Message)" }
+            $oldMoved = $false
+        }
+        return $true
+    }
+    finally {
+        if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue }
+        if ($oldMoved -and -not (Test-Path -LiteralPath $Destination) -and (Test-Path -LiteralPath $backup)) {
+            Move-Item -LiteralPath $backup -Destination $Destination -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 function Install-App($key) {
     $a = $AppDefs[$key]
     $url = $a.Url
@@ -512,13 +555,7 @@ function Install-App($key) {
             }
             'zip' {
                 $dest = Join-Path $env:ProgramFiles $a.Folder
-                if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
-                Expand-Archive -Path $path -DestinationPath $dest -Force
-                $exe = Get-ChildItem $dest -Recurse -Filter $a.Exe | Select-Object -First 1
-                if ($exe) {
-                    New-Shortcut $exe.FullName $a.Name
-                    $done = $true
-                }
+                $done = Install-ZipApp $path $dest $a.Exe $a.Name
             }
             'fivem' {
                 $dest = Join-Path $env:LOCALAPPDATA 'FiveM'
@@ -623,23 +660,39 @@ function Install-FiveMConfig {
 }
 
 function Load-Backup {
-    if (Test-Path $BackupFile) { @(Get-Content $BackupFile -Raw | ConvertFrom-Json) } else { @() }
+    if (Test-Path $BackupFile) {
+        $entries = Get-Content $BackupFile -Raw | ConvertFrom-Json
+        foreach ($entry in $entries) { $entry }
+    }
 }
 
 function Set-Reg($Path, $Name, $Value, $Type = 'DWord') {
-    if (-not (Test-Path $Path)) { New-Item -Path $Path -Force | Out-Null }
-    $old = Get-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue
+    $keyExisted = Test-Path -LiteralPath $Path
+    $valueExisted = $false
+    $oldValue = $null
+    $oldType = $Type
+    if ($keyExisted) {
+        $key = Get-Item -LiteralPath $Path -ErrorAction Stop
+        $valueName = if ($Name -eq '(default)') { '' } else { $Name }
+        $valueExisted = $key.GetValueNames() -contains $valueName
+        if ($valueExisted) {
+            $oldValue = $key.GetValue($valueName, $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+            $oldType = $key.GetValueKind($valueName).ToString()
+        }
+    }
     $list = @(Load-Backup)
     if (-not ($list | Where-Object { $_.Path -eq $Path -and $_.Name -eq $Name })) {
         $list += [pscustomobject]@{
-            Path    = $Path
-            Name    = $Name
-            Existed = ($null -ne $old)
-            Value   = $(if ($old) { $old.$Name } else { $null })
-            Type    = $Type
+            Path       = $Path
+            Name       = $Name
+            KeyExisted = $keyExisted
+            Existed    = $valueExisted
+            Value      = $oldValue
+            Type       = $oldType
         }
         ConvertTo-Json -InputObject @($list) -Depth 3 | Set-Content $BackupFile
     }
+    if (-not $keyExisted) { New-Item -Path $Path -Force | Out-Null }
     Set-ItemProperty -Path $Path -Name $Name -Value $Value -Type $Type
 }
 
@@ -771,6 +824,10 @@ $script:DebloatOnlyInstalled = $null
 $script:DebloatStatus = $null
 $script:DebloatBatchUpdate = $false
 $script:DebloatSearchTimer = $null
+$script:DebloatJob = $null
+$script:DebloatPollTimer = $null
+$script:DebloatLoaded = $false
+$script:DebloatLoading = $false
 
 function Test-ProtectedDebloatApp($app) {
     # Never offer Windows runtimes or common development tools for removal.
@@ -778,23 +835,26 @@ function Test-ProtectedDebloatApp($app) {
     return $identity -match '(?i)(copilot|visual\s*studio|vs\s*code|vscode|c\+\+|vcredist|vc\.?redist|microsoft\.vclibs|microsoft\.ui\.xaml|microsoft\.net\.native|windowsappruntime|\.net\s*(desktop\s*)?runtime|developer\s*mode|dev\s*home|windows\s*terminal|powershell|\bgit\b|\bpython\b|\bnode(js)?\b|programming|development\s*tools)'
 }
 
-function Get-DebloatCatalog {
-    $appFile = Join-Path $Data 'win11debloat-apps.json'
-    $nameFile = Join-Path $Data 'win11debloat-app-names.json'
+function Get-DebloatCatalog($CatalogUrl, $NamesUrl, $DataPath) {
+    $appFile = Join-Path $DataPath 'win11debloat-apps.json'
+    $nameFile = Join-Path $DataPath 'win11debloat-app-names.json'
+    $messages = @()
     try {
-        $appText = (Invoke-WebRequest $DebloatCatalogUrl -UseBasicParsing -TimeoutSec 8).Content
-        $nameText = (Invoke-WebRequest $DebloatNamesUrl -UseBasicParsing -TimeoutSec 8).Content
+        $appText = (Invoke-WebRequest $CatalogUrl -UseBasicParsing -TimeoutSec 8).Content
+        $nameText = (Invoke-WebRequest $NamesUrl -UseBasicParsing -TimeoutSec 8).Content
         Set-Content -LiteralPath $appFile -Value $appText -Encoding UTF8
         Set-Content -LiteralPath $nameFile -Value $nameText -Encoding UTF8
     }
     catch {
         if (-not (Test-Path $appFile) -or -not (Test-Path $nameFile)) {
-            Write-Log "Could not load the app catalog: $($_.Exception.Message)"
-            return @()
+            return [pscustomobject]@{
+                Apps = @()
+                Messages = @("Could not load the app catalog: $($_.Exception.Message)")
+            }
         }
         $appText = Get-Content -LiteralPath $appFile -Raw
         $nameText = Get-Content -LiteralPath $nameFile -Raw
-        Write-Log 'Using the saved Win11Debloat app catalog.'
+        $messages += 'Using the saved Win11Debloat app catalog.'
     }
 
     try {
@@ -804,8 +864,10 @@ function Get-DebloatCatalog {
         $nameData = $nameText | ConvertFrom-Json
     }
     catch {
-        Write-Log "Could not read the app catalog: $($_.Exception.Message)"
-        return @()
+        return [pscustomobject]@{
+            Apps = @()
+            Messages = @($messages + "Could not read the app catalog: $($_.Exception.Message)")
+        }
     }
     $installedIds = @(
         @(Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue | ForEach-Object { $_.Name }) +
@@ -844,7 +906,11 @@ function Get-DebloatCatalog {
             Selected = [bool]$app.SelectedByDefault
         }
     }
-    $items | Sort-Object @{ Expression = { if ($_.Recommendation -eq 'Recommended') { 0 } else { 1 } } }, Name
+    $sortedItems = @($items | Sort-Object @{ Expression = { if ($_.Recommendation -eq 'Recommended') { 0 } else { 1 } } }, Name)
+    [pscustomobject]@{
+        Apps = $sortedItems
+        Messages = @($messages)
+    }
 }
 
 function Update-DebloatRows {
@@ -900,29 +966,59 @@ function Test-DebloatAppInstalled($app, $appxPackages, $provisionedPackages, $wi
 function Remove-DebloatApp($app, $appxPackages, $provisionedPackages) {
     if (Test-ProtectedDebloatApp $app) {
         Write-Log "Protected from removal: $($app.Name)"
-        return
+        return $false
     }
     $ids = @($app.AppIds)
     $removed = $false
+    $failed = $false
     if ($app.RemovalMethod -eq 'WinGet' -and (Test-Winget)) {
         foreach ($id in $ids) {
-            $p = Start-Process winget -ArgumentList "uninstall --id `"$id`" --exact --silent --accept-source-agreements --disable-interactivity" -PassThru -WindowStyle Hidden
-            if ((Wait-Proc $p) -eq 0) { $removed = $true }
+            try {
+                $p = Start-Process winget -ArgumentList "uninstall --id `"$id`" --exact --silent --accept-source-agreements --disable-interactivity" -PassThru -WindowStyle Hidden -ErrorAction Stop
+                $exitCode = Wait-Proc $p
+                if ($exitCode -eq 0) { $removed = $true }
+                else {
+                    $failed = $true
+                    Write-Log "winget could not remove $($app.Name) (exit code $exitCode)."
+                }
+            }
+            catch {
+                $failed = $true
+                Write-Log "winget failed to remove $($app.Name): $($_.Exception.Message)"
+            }
         }
     }
     if (-not $removed) {
+        $failed = $false
         foreach ($pkg in @($appxPackages | Where-Object { $ids -contains $_.Name })) {
             Write-Log "Removing $($app.Name)"
-            Remove-AppxPackage -Package $pkg.PackageFullName -AllUsers -ErrorAction SilentlyContinue
-            $removed = $true
+            try {
+                Remove-AppxPackage -Package $pkg.PackageFullName -AllUsers -ErrorAction Stop
+                $removed = $true
+            }
+            catch {
+                $failed = $true
+                Write-Log "Could not remove $($app.Name): $($_.Exception.Message)"
+            }
         }
         foreach ($pkg in @($provisionedPackages | Where-Object { $ids -contains $_.DisplayName })) {
             Write-Log "Removing $($app.Name) for new user accounts"
-            Remove-AppxProvisionedPackage -Online -PackageName $pkg.PackageName -ErrorAction SilentlyContinue | Out-Null
-            $removed = $true
+            try {
+                Remove-AppxProvisionedPackage -Online -PackageName $pkg.PackageName -ErrorAction Stop | Out-Null
+                $removed = $true
+            }
+            catch {
+                $failed = $true
+                Write-Log "Could not remove $($app.Name) for new user accounts: $($_.Exception.Message)"
+            }
         }
     }
-    if (-not $removed) { Write-Log "$($app.Name) was not found as an installed app." }
+    if ($removed -and -not $failed) {
+        Write-Log "Removal command succeeded for $($app.Name)."
+        return $true
+    }
+    else { Write-Log "FAILED: Could not remove $($app.Name)." }
+    return $false
 }
 
 function New-RestorePoint {
@@ -936,8 +1032,21 @@ function New-RestorePoint {
 
 function Undo-Tweaks {
     foreach ($e in @(Load-Backup)) {
-        if ($e.Existed) { Set-ItemProperty -Path $e.Path -Name $e.Name -Value $e.Value -Type $e.Type }
-        else { Remove-ItemProperty -Path $e.Path -Name $e.Name -ErrorAction SilentlyContinue }
+        if ($e.Existed) {
+            if (-not (Test-Path -LiteralPath $e.Path)) { New-Item -Path $e.Path -Force | Out-Null }
+            Set-ItemProperty -Path $e.Path -Name $e.Name -Value $e.Value -Type $e.Type -ErrorAction Stop
+        }
+        elseif (Test-Path -LiteralPath $e.Path) {
+            Remove-ItemProperty -Path $e.Path -Name $e.Name -ErrorAction SilentlyContinue
+        }
+    }
+    foreach ($path in @((Load-Backup | Where-Object { $_.PSObject.Properties['KeyExisted'] -and -not $_.KeyExisted } | Select-Object -ExpandProperty Path -Unique))) {
+        if (Test-Path -LiteralPath $path) {
+            $key = Get-Item -LiteralPath $path -ErrorAction Stop
+            if ($key.SubKeyCount -eq 0 -and $key.ValueCount -eq 0) {
+                Remove-Item -LiteralPath $path -ErrorAction Stop
+            }
+        }
     }
     if (Test-Path $PlanFile) { powercfg /setactive (Get-Content $PlanFile -Raw).Trim() }
     [W.U]::SystemParametersInfo(4, 0, [int[]](6, 10, 1), 3) | Out-Null
@@ -996,6 +1105,7 @@ function Show-Tab($n) {
     $btnUndo.Visible = ($n -eq 'Tweaks')
     $btnAll.Visible = ($n -ne 'Debloat')
     $btnNone.Visible = ($n -ne 'Debloat')
+    $btnGo.Enabled = -not ($n -eq 'Debloat' -and $script:DebloatLoading)
     $null = $Flows[$n].Focus()
 }
 
@@ -1298,8 +1408,9 @@ $debloatClear.Add_Click({
         }
     })
 
-function Load-DebloatUi {
-    $script:DebloatCatalog = @(Get-DebloatCatalog)
+function Load-DebloatUi($result) {
+    $script:DebloatCatalog = @($result.Apps)
+    foreach ($message in $result.Messages) { Write-Log $message }
     $script:DebloatGrid.Rows.Clear()
     foreach ($app in $script:DebloatCatalog) {
         $idx = $script:DebloatGrid.Rows.Add($app.Selected, $app.Name, $app.Description, ($app.AppIds -join ', '), $app.Recommendation, $(if ($app.Installed) { 'Yes' } else { 'No' }))
@@ -1313,6 +1424,82 @@ function Load-DebloatUi {
     }
     Update-DebloatRows
     if (-not $script:DebloatCatalog.Count) { $script:DebloatStatus.Text = 'App catalog unavailable. Connect to the internet and reopen deep.' }
+    elseif ($result.Messages -contains 'Using the saved Win11Debloat app catalog.') { $script:DebloatStatus.Text += ' (cached catalog)' }
+}
+
+function Complete-DebloatCatalogLoad {
+    if (-not $script:DebloatJob -or $script:DebloatJob.State -in @('NotStarted', 'Running')) { return }
+    $script:DebloatPollTimer.Stop()
+    try {
+        if ($script:DebloatJob.State -ne 'Completed') {
+            $reason = $script:DebloatJob.ChildJobs | ForEach-Object { $_.JobStateInfo.Reason } | Where-Object { $_ } | Select-Object -First 1
+            if ($reason) { throw $reason }
+            throw "Catalog worker ended with state $($script:DebloatJob.State)."
+        }
+        $results = @(Receive-Job -Job $script:DebloatJob -ErrorAction Stop)
+        if (-not $results.Count -or -not $results[-1].PSObject.Properties['Apps']) {
+            throw 'Catalog worker returned no valid result.'
+        }
+        Load-DebloatUi $results[-1]
+    }
+    catch {
+        Write-Log "Could not load the app catalog: $($_.Exception.Message)"
+        $script:DebloatStatus.Text = 'App catalog unavailable. Connect to the internet and reopen deep.'
+    }
+    finally {
+        Remove-Job -Job $script:DebloatJob -Force -ErrorAction SilentlyContinue
+        $script:DebloatJob = $null
+        $script:DebloatLoading = $false
+        $script:DebloatLoaded = $true
+        $script:DebloatPollTimer.Stop()
+        $script:DebloatPollTimer.Dispose()
+        $script:DebloatPollTimer = $null
+        $script:DebloatSearch.Enabled = $true
+        $script:DebloatOnlyInstalled.Enabled = $true
+        $debloatSelectRecommended.Enabled = $true
+        $debloatSelectOptional.Enabled = $true
+        $debloatClear.Enabled = $true
+        if ($script:CurrentTab -eq 'Debloat') { $btnGo.Enabled = $true }
+    }
+}
+
+function Start-DebloatCatalogLoad {
+    if ($script:DebloatLoaded -or $script:DebloatLoading) { return }
+    $script:DebloatLoading = $true
+    $script:DebloatStatus.Text = 'Loading app catalog in the background...'
+    $script:DebloatSearch.Enabled = $false
+    $script:DebloatOnlyInstalled.Enabled = $false
+    $debloatSelectRecommended.Enabled = $false
+    $debloatSelectOptional.Enabled = $false
+    $debloatClear.Enabled = $false
+    if ($script:CurrentTab -eq 'Debloat') { $btnGo.Enabled = $false }
+    try {
+        $catalogDefinition = (Get-Command Get-DebloatCatalog).Definition
+        $protectedAppDefinition = (Get-Command Test-ProtectedDebloatApp).Definition
+        $script:DebloatJob = Start-Job -ScriptBlock {
+            param($catalogBody, $protectedAppBody, $catalogUrl, $namesUrl, $dataPath)
+            function Test-Winget { [bool](Get-Command winget -ErrorAction SilentlyContinue) }
+            . ([scriptblock]::Create("function Test-ProtectedDebloatApp {`n$protectedAppBody`n}"))
+            . ([scriptblock]::Create("function Get-DebloatCatalog {`n$catalogBody`n}"))
+            Get-DebloatCatalog -CatalogUrl $catalogUrl -NamesUrl $namesUrl -DataPath $dataPath
+        } -ArgumentList $catalogDefinition, $protectedAppDefinition, $DebloatCatalogUrl, $DebloatNamesUrl, $Data -ErrorAction Stop
+        $script:DebloatPollTimer = New-Object Windows.Forms.Timer
+        $script:DebloatPollTimer.Interval = 250
+        $script:DebloatPollTimer.Add_Tick({ Complete-DebloatCatalogLoad })
+        $script:DebloatPollTimer.Start()
+    }
+    catch {
+        $script:DebloatLoading = $false
+        $script:DebloatLoaded = $true
+        $script:DebloatStatus.Text = 'App catalog unavailable. Connect to the internet and reopen deep.'
+        Write-Log "Could not start the app catalog worker: $($_.Exception.Message)"
+        $script:DebloatSearch.Enabled = $true
+        $script:DebloatOnlyInstalled.Enabled = $true
+        $debloatSelectRecommended.Enabled = $true
+        $debloatSelectOptional.Enabled = $true
+        $debloatClear.Enabled = $true
+        if ($script:CurrentTab -eq 'Debloat') { $btnGo.Enabled = $true }
+    }
 }
 
 $btnAll.Add_Click({ foreach ($k in $TabKeys[$script:CurrentTab]) { $Checks[$k].Checked = $true } })
@@ -1385,7 +1572,12 @@ $btnGo.Add_Click({
             }
             'Debloat' {
                 foreach ($app in $selectedDebloat) {
-                    $steps += @{ Label = "Removing app: $($app.Name)"; Action = { Remove-DebloatApp $app $appxSnapshot $provisionedSnapshot }.GetNewClosure() }
+                    $app | Add-Member -NotePropertyName RemovalSucceeded -NotePropertyValue $false -Force
+                    $steps += @{
+                        Label = "Removing app: $($app.Name)"
+                        DebloatApp = $app
+                        Action = { Remove-DebloatApp $app $appxSnapshot $provisionedSnapshot }.GetNewClosure()
+                    }
                 }
             }
         }
@@ -1394,17 +1586,27 @@ $btnGo.Add_Click({
         $bar.Value = 0
         foreach ($s in $steps) {
             Write-Log ">> $($s.Label)"
-            try { & $s.Action } catch { Write-Log "Error: $($_.Exception.Message)" }
+            try {
+                $stepResult = & $s.Action
+                if ($s.ContainsKey('DebloatApp')) { $s.DebloatApp.RemovalSucceeded = [bool]$stepResult }
+            }
+            catch {
+                if ($s.ContainsKey('DebloatApp')) { $s.DebloatApp.RemovalSucceeded = $false }
+                Write-Log "Error: $($_.Exception.Message)"
+            }
             $bar.Value = [Math]::Min($bar.Value + 1, $bar.Maximum)
         }
         Write-Log 'Finished.'
         if ($tab -eq 'Apps') { Write-Log "Installers were saved in $Dl" }
         if ($tab -eq 'Debloat') {
             foreach ($app in $selectedDebloat) {
-                $app.Installed = $false
-                foreach ($r in $script:DebloatGrid.Rows) {
-                    if ($r.Tag -eq $app) { $r.Cells[0].Value = $false; $r.Cells[5].Value = 'No' }
+                if ($app.RemovalSucceeded) {
+                    $app.Installed = $false
+                    foreach ($r in $script:DebloatGrid.Rows) {
+                        if ($r.Tag -eq $app) { $r.Cells[0].Value = $false; $r.Cells[5].Value = 'No' }
+                    }
                 }
+                else { Write-Log "Removal was not confirmed for $($app.Name); it remains selected." }
             }
             Update-DebloatRows
         }
@@ -1424,7 +1626,20 @@ $form.Add_Shown({
         Apply-Theme 'Snow'
         Show-Tab 'Apps'
         Write-Log "deep v$Version ready. Only the page you are on is applied."
-        Load-DebloatUi
+        Start-DebloatCatalogLoad
+    })
+
+$form.Add_FormClosed({
+        if ($script:DebloatPollTimer) {
+            $script:DebloatPollTimer.Stop()
+            $script:DebloatPollTimer.Dispose()
+            $script:DebloatPollTimer = $null
+        }
+        if ($script:DebloatJob) {
+            Stop-Job -Job $script:DebloatJob -ErrorAction SilentlyContinue
+            Remove-Job -Job $script:DebloatJob -Force -ErrorAction SilentlyContinue
+            $script:DebloatJob = $null
+        }
     })
 
 [void]$form.ShowDialog()
