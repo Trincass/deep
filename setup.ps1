@@ -1,4 +1,4 @@
-$Version = '1.12.1'
+$Version = '1.13.0'
 $Repo = 'Trincass/deep'
 $Branch = 'main'
 $Raw = "https://raw.githubusercontent.com/$Repo/$Branch/setup.ps1"
@@ -1303,7 +1303,7 @@ function Get-DebloatCatalog($CatalogUrl, $NamesUrl, $DataPath) {
             }
             RemovalMethod = $app.RemovalMethod
             Installed = $isInstalled
-            Selected = [bool]($app.Recommendation -ne 'unsafe' -and $app.SelectedByDefault -and $ids -notcontains 'XP9CXNGPPJ97XX' -and $ids -notcontains 'Microsoft.MicrosoftOfficeHub')
+            Selected = $false
         }
     }
     $sortedItems = @($items | Sort-Object @{ Expression = { switch ($_.Recommendation) { 'Recommended' { 0 } 'Optional' { 1 } default { 2 } } } }, Name)
@@ -1715,7 +1715,7 @@ $Flows['Apps'].Add_Resize($script:LayoutStandardRows)
 $Flows['Drivers'].Add_Resize($script:LayoutStandardRows)
 
 Add-TweakSection 'Privacy & suggested content'
-Add-Row 'Tweaks' 'tw:telemetry' 'Reduce telemetry and ads' 'Limits diagnostic data, advertising ID, feedback prompts and tailored experiences.' $true 84
+Add-Row 'Tweaks' 'tw:telemetry' 'Reduce telemetry and ads' 'Limits diagnostic data, advertising ID, feedback prompts and tailored experiences.' $false 84
 Add-Row 'Tweaks' 'tw:suggestions' 'Disable tips and suggested content' 'Turns off Windows tips, app suggestions and sync-provider ads.' $false 84
 Add-Row 'Tweaks' 'tw:location' 'Disable location services' 'Blocks Windows location services and location access for apps.' $false 84
 Add-Row 'Tweaks' 'tw:finddevice' 'Disable Find My Device' 'Stops Windows from using device location for Find My Device.' $false 84
@@ -1723,10 +1723,10 @@ Add-Row 'Tweaks' 'tw:edgebloat' 'Reduce Edge ads and suggestions' 'Turns off Edg
 
 Add-TweakSection 'System'
 Add-Row 'Tweaks' 'tw:notifications' 'Disable Windows notifications' 'Turns off notifications from Windows and apps. App notifications will stop appearing.' $false 84
-Add-Row 'Tweaks' 'tw:mouse' 'Disable mouse acceleration' 'Turns off Enhance pointer precision for consistent cursor movement.' $true
+Add-Row 'Tweaks' 'tw:mouse' 'Disable mouse acceleration' 'Turns off Enhance pointer precision for consistent cursor movement.' $false
 Add-Row 'Tweaks' 'tw:faststartup' 'Disable fast start-up' 'Uses a full shutdown; the next boot may take slightly longer.' $false 84
-Add-Row 'Tweaks' 'tw:power' 'Ultimate Performance power plan' 'Unlocks and activates the high-performance plan; it uses more power.' $true 84
-Add-Row 'Tweaks' 'tw:notifsound' 'Mute notification sounds' 'Mutes Windows notification sounds. Apps with their own audio must be muted inside the app.' $true 84
+Add-Row 'Tweaks' 'tw:power' 'Ultimate Performance power plan' 'Unlocks and activates the high-performance plan; it uses more power.' $false 84
+Add-Row 'Tweaks' 'tw:notifsound' 'Mute notification sounds' 'Mutes Windows notification sounds. Apps with their own audio must be muted inside the app.' $false 84
 
 Add-TweakSection 'Windows Update'
 Add-Row 'Tweaks' 'tw:updateasap' 'Delay early feature updates' 'You still receive updates, but Windows will not place this PC in the earliest rollout group.' $false 84
@@ -1745,7 +1745,7 @@ Add-Row 'Tweaks' 'tw:gamebar' 'Disable Game Bar integration' 'Stops Game Bar pop
 Add-TweakSection 'Start & search'
 
 Add-TweakSection 'Appearance'
-Add-Row 'Tweaks' 'tw:dark' 'Dark theme' 'Switches Windows and apps to dark mode.' $true
+Add-Row 'Tweaks' 'tw:dark' 'Dark theme' 'Switches Windows and apps to dark mode.' $false
 Add-Row 'Tweaks' 'tw:transparency' 'Disable transparency effects' 'Turns off Windows transparency effects.' $false
 Add-Row 'Tweaks' 'tw:animations' 'Reduce animations and visual effects' 'Turns off window animations and some visual effects.' $false 84
 Add-Row 'Tweaks' 'tw:spotlight' 'Hide Spotlight desktop shortcut' 'Hides the “Learn about this picture” icon on the desktop.' $false 84
@@ -1754,7 +1754,7 @@ Add-TweakSection 'Multi-tasking'
 Add-Row 'Tweaks' 'tw:snap' 'Disable window snapping' 'Turns off snapping windows to screen edges and Snap Assist suggestions.' $false 84
 
 Add-TweakSection 'File Explorer'
-Add-Row 'Tweaks' 'tw:explorer' 'File Explorer privacy' 'Stops Quick access from showing recent files and frequent folders.' $true
+Add-Row 'Tweaks' 'tw:explorer' 'File Explorer privacy' 'Stops Quick access from showing recent files and frequent folders.' $false
 Add-Row 'Tweaks' 'tw:extensions' 'Show file extensions' 'Shows extensions such as .txt and .jpg in File Explorer.' $false
 Add-Row 'Tweaks' 'tw:hiddenfiles' 'Show hidden files' 'Shows hidden files and protected system files in File Explorer.' $false 84
 
@@ -1828,7 +1828,7 @@ $script:TweakCardsPanel.Add_Resize($script:LayoutTweakCards)
 $restore = New-Object FxRow
 $restore.Title = 'Create a restore point first'
 $restore.Desc = 'Made before anything is applied, on any page.'
-$restore.Checked = $true
+$restore.Checked = $false
 $restore.Location = New-Object Drawing.Point(24, ($H - 158))
 $restore.Size = New-Object Drawing.Size(284, 58)
 $restore.Anchor = 'Bottom,Left'
@@ -1907,6 +1907,7 @@ $debloatClear.Size = New-Object Drawing.Size(112, 30)
 $debloatPanel.Controls.Add($debloatClear)
 $script:DebloatOnlyInstalled = New-Object Windows.Forms.CheckBox
 $script:DebloatOnlyInstalled.Text = 'Only show installed apps'
+$script:DebloatOnlyInstalled.Checked = $false
 $script:DebloatOnlyInstalled.Location = New-Object Drawing.Point(648, 6)
 $script:DebloatOnlyInstalled.Size = New-Object Drawing.Size(210, 28)
 $script:DebloatOnlyInstalled.Anchor = 'Top,Right'
