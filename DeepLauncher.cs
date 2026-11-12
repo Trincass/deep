@@ -84,20 +84,34 @@ internal static class DeepLauncher
                 FileName = Path.Combine(
                     Environment.SystemDirectory,
                     @"WindowsPowerShell\v1.0\powershell.exe"),
-                Arguments = "-NoLogo -NoProfile -STA -File \"" + scriptPath + "\"",
+                Arguments = "-NoLogo -NoProfile -STA -ExecutionPolicy Bypass -File \"" + scriptPath + "\"",
                 CreateNoWindow = true,
                 UseShellExecute = false,
-                WindowStyle = ProcessWindowStyle.Hidden
+                WindowStyle = ProcessWindowStyle.Hidden,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
             };
 
             using (Process process = Process.Start(startInfo))
             {
                 if (process == null)
                     throw new InvalidOperationException("Windows PowerShell did not start.");
+                var standardOutput = process.StandardOutput.ReadToEndAsync();
+                var standardError = process.StandardError.ReadToEndAsync();
                 process.WaitForExit();
                 if (process.ExitCode != 0)
-                    throw new InvalidOperationException(
-                        "Windows PowerShell exited with code " + process.ExitCode + ".");
+                {
+                    string details = standardError.Result.Trim();
+                    if (details.Length == 0)
+                        details = standardOutput.Result.Trim();
+                    if (details.Length > 3000)
+                        details = details.Substring(0, 3000) + Environment.NewLine + "...";
+
+                    string message = "Windows PowerShell exited with code " + process.ExitCode + ".";
+                    if (details.Length > 0)
+                        message += Environment.NewLine + Environment.NewLine + details;
+                    throw new InvalidOperationException(message);
+                }
             }
         }
         finally
