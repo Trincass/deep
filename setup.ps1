@@ -1,4 +1,4 @@
-$Version = '1.10.0'
+$Version = '1.11.0'
 $Repo = 'Trincass/deep'
 $Branch = 'main'
 $Raw = "https://raw.githubusercontent.com/$Repo/$Branch/setup.ps1"
@@ -41,6 +41,8 @@ public static class FxUtil
 {
     [DllImport("uxtheme.dll", EntryPoint = "#135")]
     static extern int SetPreferredAppMode(int mode);
+    [DllImport("user32.dll", EntryPoint = "ShowScrollBar")]
+    static extern bool ShowScrollBarNative(IntPtr handle, int bar, bool show);
     static bool darkModeInitialized = false;
 
     public static void EnableDarkMode()
@@ -49,6 +51,11 @@ public static class FxUtil
         try { SetPreferredAppMode(1); }
         catch (EntryPointNotFoundException) { }
         darkModeInitialized = true;
+    }
+
+    public static void HideScrollBars(Control control)
+    {
+        if (control != null && control.IsHandleCreated) ShowScrollBarNative(control.Handle, 3, false);
     }
 
     public static Font TitleFont = new Font("Segoe UI Semibold", 11.5f);
@@ -71,6 +78,34 @@ public static class FxUtil
         p.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
         p.CloseFigure();
         return p;
+    }
+}
+
+public class FxScrollPanel : Panel
+{
+    public FxScrollPanel()
+    {
+        AutoScroll = true;
+        SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        FxUtil.HideScrollBars(this);
+    }
+
+    protected override void OnLayout(LayoutEventArgs e)
+    {
+        base.OnLayout(e);
+        FxUtil.HideScrollBars(this);
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        base.WndProc(ref m);
+        if (m.Msg == 0x0005 || m.Msg == 0x0085 || m.Msg == 0x0018 || m.Msg == 0x007D)
+            FxUtil.HideScrollBars(this);
     }
 }
 
@@ -1457,12 +1492,17 @@ function Undo-Tweaks {
 
 $Themes = @{ 'Snow' = 'snow'; 'Off' = 'off' }
 $PrimaryText = @{ Apps = 'Install selected'; Drivers = 'Install drivers'; Tweaks = 'Apply tweaks'; Debloat = 'Remove selected apps' }
-$H = 900
+$workArea = [Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+$initialClientWidth = [Math]::Min(1240, [Math]::Max(760, $workArea.Width - 32))
+$initialClientHeight = [Math]::Min(900, [Math]::Max(560, $workArea.Height - 32))
+$H = $initialClientHeight
 
 $form = New-Object FxForm
 $form.Text = 'deep'
-$form.ClientSize = New-Object Drawing.Size(1240, $H)
-$form.MinimumSize = $form.Size
+$form.ClientSize = New-Object Drawing.Size($initialClientWidth, $initialClientHeight)
+$minClientWidth = [Math]::Min(900, $initialClientWidth)
+$minClientHeight = [Math]::Min(600, $initialClientHeight)
+$form.MinimumSize = $form.SizeFromClientSize((New-Object Drawing.Size($minClientWidth, $minClientHeight)))
 $form.StartPosition = 'CenterScreen'
 $form.Font = New-Object Drawing.Font('Segoe UI', 9.5)
 $form.Title = 'deep'
@@ -1536,14 +1576,10 @@ foreach ($n in 'Apps', 'Drivers', 'Tweaks', 'Debloat') {
         continue
     }
     if ($n -eq 'Tweaks') {
-        $f = New-Object Windows.Forms.Panel
-        $f.AutoScroll = $true
+        $f = New-Object FxScrollPanel
     }
     else {
-        $f = New-Object Windows.Forms.FlowLayoutPanel
-        $f.FlowDirection = 'TopDown'
-        $f.WrapContents = $false
-        $f.AutoScroll = $true
+        $f = New-Object FxScrollPanel
     }
     $f.Location = New-Object Drawing.Point(24, 166)
     $f.Size = New-Object Drawing.Size(1192, 548)
@@ -1575,7 +1611,7 @@ function Add-Row($tab, $key, $title, $desc, $on, $height = 78) {
     $r.Title = $title
     $r.Desc = $desc
     $r.Checked = $on
-    $rowWidth = if ($tab -eq 'Tweaks') { 352 } else { 1148 }
+    $rowWidth = if ($tab -eq 'Tweaks') { 352 } else { [Math]::Max(320, $Flows[$tab].ClientSize.Width - 24) }
     if ($tab -eq 'Tweaks') {
         $r.Compact = $true
         $height = [Math]::Min($height, 72)
@@ -1585,6 +1621,9 @@ function Add-Row($tab, $key, $title, $desc, $on, $height = 78) {
         $r.Margin = New-Object Windows.Forms.Padding(2, 0, 2, 10)
     }
     $r.Size = New-Object Drawing.Size($rowWidth, $height)
+    if ($tab -ne 'Tweaks') {
+        $r.Location = New-Object Drawing.Point(12, $Flows[$tab].Controls.Count * 88 + 8)
+    }
     $Flows[$tab].Controls.Add($r)
     $Checks[$key] = $r
     $TabKeys[$tab] += $key
@@ -1625,6 +1664,25 @@ Add-Row 'Apps' 'app:obs' 'OBS Studio' 'Free recording and streaming software. La
 
 Add-Row 'Drivers' 'drv:chipset' 'CPU / chipset drivers' 'Picks the right package for your processor automatically (Intel or AMD). Falls back to the official vendor page if there is no silent installer.' $false 84
 Add-Row 'Drivers' 'drv:gpu' 'Graphics drivers' 'Picks the right package for your graphics card automatically (NVIDIA, AMD or Intel). Falls back to the official vendor page if there is no silent installer.' $false 84
+
+$script:LayoutStandardRows = {
+        foreach ($tab in @('Apps', 'Drivers')) {
+            $panel = $Flows[$tab]
+            if (-not $panel) { continue }
+            $width = [Math]::Max(320, $panel.ClientSize.Width - 24)
+            $y = 8
+            foreach ($control in $panel.Controls) {
+                if ($control -isnot [FxRow]) { continue }
+                $control.Location = New-Object Drawing.Point(12, $y)
+                $control.Size = New-Object Drawing.Size($width, $control.Height)
+                $y += $control.Height + 10
+            }
+            $panel.AutoScrollMinSize = New-Object Drawing.Size(0, $y)
+            [FxUtil]::HideScrollBars($panel)
+        }
+    }
+$Flows['Apps'].Add_Resize($script:LayoutStandardRows)
+$Flows['Drivers'].Add_Resize($script:LayoutStandardRows)
 
 Add-TweakSection 'Privacy & suggested content'
 Add-Row 'Tweaks' 'tw:telemetry' 'Reduce telemetry and ads' 'Limits diagnostic data, advertising ID, feedback prompts and tailored experiences.' $true 84
