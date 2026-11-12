@@ -1,4 +1,4 @@
-$Version = '1.11.1'
+$Version = '1.12.0'
 $Repo = 'Trincass/deep'
 $Branch = 'main'
 $Raw = "https://raw.githubusercontent.com/$Repo/$Branch/setup.ps1"
@@ -1579,15 +1579,36 @@ foreach ($n in 'Apps', 'Drivers', 'Tweaks', 'Debloat') {
         $i++
         continue
     }
-    $f = New-Object FxScrollPanel
-    $f.Location = New-Object Drawing.Point(24, 166)
-    $f.Size = New-Object Drawing.Size(($initialClientWidth - 48), [Math]::Max(120, $H - 352))
-    $f.Anchor = 'Top,Bottom,Left,Right'
-    $f.BackColor = [Drawing.Color]::Transparent
-    $f.Visible = $false
-    $form.Controls.Add($f)
-    try { [W.U]::SetWindowTheme($f.Handle, 'DarkMode_Explorer', $null) | Out-Null } catch { }
-    $Flows[$n] = $f
+    if ($n -eq 'Tweaks') {
+        $f = New-Object Windows.Forms.Panel
+        $f.Location = New-Object Drawing.Point(24, 166)
+        $f.Size = New-Object Drawing.Size(($initialClientWidth - 48), [Math]::Max(120, $H - 352))
+        $f.Anchor = 'Top,Bottom,Left,Right'
+        $f.BackColor = [Drawing.Color]::Transparent
+        $f.Visible = $false
+        $form.Controls.Add($f)
+        $Flows[$n] = $f
+
+        $script:TweakCardsPanel = New-Object FxScrollPanel
+        $script:TweakCardsPanel.Location = New-Object Drawing.Point(8, 8)
+        $script:TweakCardsPanel.Size = New-Object Drawing.Size(($f.ClientSize.Width - 16), ($f.ClientSize.Height - 16))
+        $script:TweakCardsPanel.Anchor = 'Top,Bottom,Left,Right'
+        $script:TweakCardsPanel.BorderStyle = 'FixedSingle'
+        $script:TweakCardsPanel.BackColor = [Drawing.Color]::FromArgb(12, 12, 12)
+        $f.Controls.Add($script:TweakCardsPanel)
+        try { [W.U]::SetWindowTheme($script:TweakCardsPanel.Handle, 'DarkMode_Explorer', $null) | Out-Null } catch { }
+    }
+    else {
+        $f = New-Object FxScrollPanel
+        $f.Location = New-Object Drawing.Point(24, 166)
+        $f.Size = New-Object Drawing.Size(($initialClientWidth - 48), [Math]::Max(120, $H - 352))
+        $f.Anchor = 'Top,Bottom,Left,Right'
+        $f.BackColor = [Drawing.Color]::Transparent
+        $f.Visible = $false
+        $form.Controls.Add($f)
+        $Flows[$n] = $f
+        try { [W.U]::SetWindowTheme($f.Handle, 'DarkMode_Explorer', $null) | Out-Null } catch { }
+    }
 
     $b = New-Btn $n 'nav' (24 + $i * 160) 112 152 36
     $name = $n
@@ -1624,7 +1645,8 @@ function Add-Row($tab, $key, $title, $desc, $on, $height = 78) {
         $rowY = [int](8 + ($Flows[$tab].Controls.Count * 88))
         $r.Location = [Drawing.Point]::new(12, $rowY)
     }
-    $Flows[$tab].Controls.Add($r)
+    $rowPanel = if ($tab -eq 'Tweaks') { $script:TweakCardsPanel } else { $Flows[$tab] }
+    $rowPanel.Controls.Add($r)
     $Checks[$key] = $r
     $TabKeys[$tab] += $key
     if ($key -like 'tw:w11:*') {
@@ -1650,9 +1672,9 @@ function Add-TweakSection($title) {
     $label.Text = $title.ToUpperInvariant()
     $label.ForeColor = [Drawing.Color]::FromArgb(190, 198, 210)
     $label.Font = New-Object Drawing.Font('Segoe UI Semibold', 9.5)
-    $label.Size = New-Object Drawing.Size([Math]::Max(320, $Flows['Tweaks'].ClientSize.Width - 28), 24)
+    $label.Size = New-Object Drawing.Size([Math]::Max(320, $script:TweakCardsPanel.ClientSize.Width - 28), 24)
     $label.Margin = New-Object Windows.Forms.Padding(2, 8, 2, 0)
-    $Flows['Tweaks'].Controls.Add($label)
+    $script:TweakCardsPanel.Controls.Add($label)
 }
 
 Add-Row 'Apps' 'app:rockstar' 'Rockstar Games Launcher' 'Official launcher for GTA V and Red Dead Redemption 2. Silent install.' $false
@@ -1747,8 +1769,8 @@ Add-Row 'Tweaks' 'tw:w11:CustomStartMenu' 'Choose Start menu layout file' 'Choos
 # Lay out tweak cards explicitly so maximize/restore cannot leave overflow
 # or stale control positions behind.
 $script:LayoutTweakCards = {
-        if (-not $Flows['Tweaks']) { return }
-        $tweaks = $Flows['Tweaks']
+        if (-not $script:TweakCardsPanel) { return }
+        $tweaks = $script:TweakCardsPanel
         $scrollTop = -$tweaks.AutoScrollPosition.Y
         $available = [Math]::Max(320, $tweaks.ClientSize.Width - [Windows.Forms.SystemInformation]::VerticalScrollBarWidth - 32)
         $gap = 12
@@ -1792,7 +1814,7 @@ $script:LayoutTweakCards = {
             $tweaks.ResumeLayout($true)
         }
     }
-$Flows['Tweaks'].Add_Resize($script:LayoutTweakCards)
+$script:TweakCardsPanel.Add_Resize($script:LayoutTweakCards)
 
 $restore = New-Object FxRow
 $restore.Title = 'Create a restore point first'
