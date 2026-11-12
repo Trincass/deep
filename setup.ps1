@@ -1317,6 +1317,7 @@ function Update-DebloatRows {
         $row.Visible = $matchesSearch -and $matchesInstalled
     }
     Update-DebloatStatus
+    [FxUtil]::HideScrollBars($script:DebloatGrid)
 }
 
 function Update-DebloatStatus {
@@ -1576,12 +1577,7 @@ foreach ($n in 'Apps', 'Drivers', 'Tweaks', 'Debloat') {
         $i++
         continue
     }
-    if ($n -eq 'Tweaks') {
-        $f = New-Object FxScrollPanel
-    }
-    else {
-        $f = New-Object FxScrollPanel
-    }
+    $f = New-Object FxScrollPanel
     $f.Location = New-Object Drawing.Point(24, 166)
     $f.Size = New-Object Drawing.Size(($initialClientWidth - 48), [Math]::Max(120, $H - 352))
     $f.Anchor = 'Top,Bottom,Left,Right'
@@ -1966,6 +1962,8 @@ $script:LayoutDebloat = {
     }
 $debloatPanel.Add_Resize($script:LayoutDebloat)
 $script:DebloatGrid.Add_Resize({ [FxUtil]::HideScrollBars($script:DebloatGrid) })
+$script:DebloatGrid.Add_Scroll({ [FxUtil]::HideScrollBars($script:DebloatGrid) })
+$script:DebloatGrid.Add_RowsAdded({ [FxUtil]::HideScrollBars($script:DebloatGrid) })
 
 $script:DebloatOnlyInstalled.Add_CheckedChanged({ Update-DebloatRows })
 $script:DebloatSearch.Add_Enter({ if ($script:DebloatSearch.Text -eq 'Search apps...') { $script:DebloatSearch.Text = '' } })
