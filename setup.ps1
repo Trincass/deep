@@ -2233,7 +2233,10 @@ $btnGo.Add_Click({
     })
 
 $form.Add_Shown({
+        & $script:LayoutFooter
+        & $script:LayoutStandardRows
         & $script:LayoutTweakCards
+        & $script:LayoutDebloat
         Apply-Theme 'Snow'
         Show-Tab 'Apps'
         Start-DebloatCatalogLoad
