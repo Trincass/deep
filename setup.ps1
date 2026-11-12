@@ -132,7 +132,7 @@ public class FxForm : Form
         if (Mode == "snow")
         {
             p.Size = 1.3f + (float)rnd.NextDouble() * 3.4f;
-            p.Speed = 0.5f + p.Size * 0.5f;
+            p.Speed = (0.5f + p.Size * 0.5f) * 0.8333f;
             p.Level = Math.Min(4, (int)((p.Size - 1.3f) / 0.85f));
         }
         return p;
@@ -173,7 +173,13 @@ public class FxForm : Form
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) timer.Stop();
+        if (disposing)
+        {
+            timer.Stop();
+            timer.Dispose();
+            line.Dispose();
+            foreach (SolidBrush brush in brushes) brush.Dispose();
+        }
         base.Dispose(disposing);
     }
 }
