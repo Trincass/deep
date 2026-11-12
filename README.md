@@ -38,19 +38,20 @@ Each page applies only its own selection. The button at the bottom right acts on
 ```
 main branch:
   DeepLauncher.cs
+  DeepLauncher.manifest
   deep-setup.exe
   setup.ps1
   README.md
 ```
 
-`DeepLauncher.cs` is the C# source for the executable launcher. It embeds and runs `setup.ps1`.
+`DeepLauncher.cs` is the C# source for the executable launcher. It embeds and runs `setup.ps1`; `DeepLauncher.manifest` makes Windows require administrator permission before launch.
 
 The Debloat page reads the app catalog and English app descriptions from Win11Debloat and saves a local copy for later use.
 
 ## Notes
 
 - Review the script before running it. Running remote code with `irm | iex` is only safe if you trust the source. Download the executable only from this repository.
-- Windows may show a SmartScreen warning for the executable because it is not code-signed.
+- The executable is not digitally signed. SmartScreen or antivirus tools may warn; review the published source and verify the release checksum rather than disabling protection or adding an exclusion.
 - Some vendors (AMD, parts of NVIDIA) do not offer stable silent download links. In that case deep opens the official download page.
 - Removing the Xbox apps can break Xbox sign-in for Microsoft Store and Game Pass games.
 - The Debloat app catalog and additional presets are based on [Raphire/Win11Debloat](https://github.com/Raphire/Win11Debloat), licensed under MIT. Not Recommended apps are available but start unselected; Microsoft Edge is never offered for removal.
