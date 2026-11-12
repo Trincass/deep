@@ -1919,6 +1919,7 @@ $script:DebloatGrid.RowTemplate.Height = 34
 $checkColumn = New-Object Windows.Forms.DataGridViewCheckBoxColumn
 $checkColumn.HeaderText = ''
 $checkColumn.Width = 34
+$checkColumn.FillWeight = 34
 $checkColumn.SortMode = 'NotSortable'
 $null = $script:DebloatGrid.Columns.Add($checkColumn)
 foreach ($column in @(@('Name', 205), @('Description', 425), @('App ID', 340), @('Type', 104), @('Installed', 76))) {
@@ -1926,6 +1927,7 @@ foreach ($column in @(@('Name', 205), @('Description', 425), @('App ID', 340), @
     $c.Name = $column[0]
     $c.HeaderText = $column[0]
     $c.Width = $column[1]
+    $c.FillWeight = [float]$column[1]
     $c.ReadOnly = $true
     $c.SortMode = 'NotSortable'
     $null = $script:DebloatGrid.Columns.Add($c)
