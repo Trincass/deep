@@ -1560,9 +1560,10 @@ function Apply-Theme($n) {
 $i = 0
 foreach ($n in 'Apps', 'Drivers', 'Tweaks', 'Debloat') {
     if ($n -eq 'Debloat') {
-        $f = New-Object Windows.Forms.Panel
+        $f = New-Object FxScrollPanel
+        $f.AutoScroll = $false
         $f.Location = New-Object Drawing.Point(24, 166)
-        $f.Size = New-Object Drawing.Size(1192, 548)
+        $f.Size = New-Object Drawing.Size(($initialClientWidth - 48), [Math]::Max(120, $H - 352))
         $f.Anchor = 'Top,Bottom,Left,Right'
         $f.BackColor = [Drawing.Color]::Transparent
         $f.Visible = $false
@@ -1582,7 +1583,7 @@ foreach ($n in 'Apps', 'Drivers', 'Tweaks', 'Debloat') {
         $f = New-Object FxScrollPanel
     }
     $f.Location = New-Object Drawing.Point(24, 166)
-    $f.Size = New-Object Drawing.Size(1192, 548)
+    $f.Size = New-Object Drawing.Size(($initialClientWidth - 48), [Math]::Max(120, $H - 352))
     $f.Anchor = 'Top,Bottom,Left,Right'
     $f.BackColor = [Drawing.Color]::Transparent
     $f.Visible = $false
@@ -1827,6 +1828,8 @@ $txt.Size = New-Object Drawing.Size(1192, 66)
 $txt.Anchor = 'Bottom,Left,Right'
 $form.Controls.Add($txt)
 try { [W.U]::SetWindowTheme($txt.Handle, 'DarkMode_Explorer', $null) | Out-Null } catch { }
+[FxUtil]::HideScrollBars($txt)
+$txt.Add_TextChanged({ [FxUtil]::HideScrollBars($txt) })
 
 $debloatPanel = $Flows['Debloat']
 $debloatSelectRecommended = New-Object FxButton
@@ -1872,7 +1875,7 @@ $script:DebloatSearch.BorderStyle = 'FixedSingle'
 $debloatPanel.Controls.Add($script:DebloatSearch)
 $script:DebloatGrid = New-Object Windows.Forms.DataGridView
 $script:DebloatGrid.Location = New-Object Drawing.Point(0, 52)
-$script:DebloatGrid.Size = New-Object Drawing.Size(1184, 448)
+$script:DebloatGrid.Size = New-Object Drawing.Size($debloatPanel.ClientSize.Width, [Math]::Max(80, $debloatPanel.ClientSize.Height - 92))
 $script:DebloatGrid.Anchor = 'Top,Bottom,Left,Right'
 $script:DebloatGrid.AllowUserToAddRows = $false
 $script:DebloatGrid.AllowUserToDeleteRows = $false
@@ -1884,6 +1887,8 @@ $script:DebloatGrid.SelectionMode = 'FullRowSelect'
 $script:DebloatGrid.BackgroundColor = [Drawing.Color]::FromArgb(12, 12, 12)
 $script:DebloatGrid.GridColor = [Drawing.Color]::FromArgb(58, 58, 58)
 $script:DebloatGrid.BorderStyle = 'FixedSingle'
+$script:DebloatGrid.ScrollBars = 'Vertical'
+$script:DebloatGrid.AutoSizeColumnsMode = 'Fill'
 $null = [W.U]::SetWindowTheme($script:DebloatGrid.Handle, 'DarkMode_Explorer', $null)
 $script:DebloatGrid.EnableHeadersVisualStyles = $false
 $script:DebloatGrid.ColumnHeadersDefaultCellStyle.BackColor = [Drawing.Color]::FromArgb(38, 38, 38)
@@ -1912,11 +1917,36 @@ foreach ($column in @(@('Name', 205), @('Description', 425), @('App ID', 340), @
 }
 $debloatPanel.Controls.Add($script:DebloatGrid)
 $script:DebloatStatus = New-Object Windows.Forms.Label
-$script:DebloatStatus.Location = New-Object Drawing.Point(4, 510)
-$script:DebloatStatus.Size = New-Object Drawing.Size(1180, 30)
+$script:DebloatStatus.Location = New-Object Drawing.Point(4, ($debloatPanel.ClientSize.Height - 30))
+$script:DebloatStatus.Size = New-Object Drawing.Size(($debloatPanel.ClientSize.Width - 8), 30)
 $script:DebloatStatus.ForeColor = [Drawing.Color]::FromArgb(180, 188, 200)
 $script:DebloatStatus.Text = 'Loading Recommended, Optional, and Not Recommended apps...'
 $debloatPanel.Controls.Add($script:DebloatStatus)
+$script:LayoutDebloat = {
+        $width = $debloatPanel.ClientSize.Width
+        $height = $debloatPanel.ClientSize.Height
+        if ($width -ge 1120) {
+            $script:DebloatOnlyInstalled.Location = New-Object Drawing.Point(648, 6)
+            $script:DebloatOnlyInstalled.Size = New-Object Drawing.Size(210, 28)
+            $script:DebloatSearch.Location = New-Object Drawing.Point(906, 5)
+            $script:DebloatSearch.Size = New-Object Drawing.Size( [Math]::Max(180, $width - 922), 30)
+            $gridTop = 52
+        }
+        else {
+            $script:DebloatOnlyInstalled.Location = New-Object Drawing.Point(4, 42)
+            $script:DebloatOnlyInstalled.Size = New-Object Drawing.Size(190, 28)
+            $script:DebloatSearch.Location = New-Object Drawing.Point(200, 41)
+            $script:DebloatSearch.Size = New-Object Drawing.Size([Math]::Max(180, $width - 204), 30)
+            $gridTop = 80
+        }
+        $script:DebloatGrid.Location = New-Object Drawing.Point(0, $gridTop)
+        $script:DebloatGrid.Size = New-Object Drawing.Size($width, [Math]::Max(80, $height - $gridTop - 34))
+        $script:DebloatStatus.Location = New-Object Drawing.Point(4, ($height - 30))
+        $script:DebloatStatus.Size = New-Object Drawing.Size([Math]::Max(100, $width - 8), 30)
+        [FxUtil]::HideScrollBars($script:DebloatGrid)
+    }
+$debloatPanel.Add_Resize($script:LayoutDebloat)
+$script:DebloatGrid.Add_Resize({ [FxUtil]::HideScrollBars($script:DebloatGrid) })
 
 $script:DebloatOnlyInstalled.Add_CheckedChanged({ Update-DebloatRows })
 $script:DebloatSearch.Add_Enter({ if ($script:DebloatSearch.Text -eq 'Search apps...') { $script:DebloatSearch.Text = '' } })
