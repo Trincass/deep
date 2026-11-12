@@ -494,18 +494,6 @@ $AppDefs = [ordered]@{
     steam      = @{ Name = 'Steam'; Kind = 'exe'; Url = 'https://cdn.akamai.steamstatic.com/client/installer/SteamSetup.exe'; File = 'SteamSetup.exe'; Args = '/S'; Winget = 'Valve.Steam' }
     discord    = @{ Name = 'Discord'; Kind = 'exe'; Url = 'https://discord.com/api/download?platform=win'; File = 'DiscordSetup.exe'; Args = '-s'; Winget = 'Discord.Discord' }
     brave      = @{ Name = 'Brave'; Kind = 'exe'; Url = 'https://laptop-updates.brave.com/latest/winx64'; File = 'BraveBrowserSetup.exe'; Args = '/silent /install'; Winget = 'Brave.Brave' }
-    everything = @{ Name = 'Everything'; Kind = 'exe'; Args = '/S'; Winget = 'voidtools.Everything'
-        Resolve = {
-            $page = Invoke-WebRequest 'https://www.voidtools.com/downloads/' -UseBasicParsing
-            $href = $page.Links.href | Where-Object { $_ -match 'Everything-[\d\.]+\.x64-Setup\.exe$' } | Select-Object -First 1
-            if (-not $href) { throw 'Everything installer link not found' }
-            if ($href -notmatch '^https?://') { $href = 'https://www.voidtools.com/' + $href.TrimStart('/') }
-            @{ Url = $href; File = Split-Path $href -Leaf }
-        }
-    }
-    die        = @{ Name = 'Detect It Easy (DIE)'; Kind = 'zip'; Folder = 'Detect It Easy'; Exe = 'die.exe'; Winget = 'horsicq.DIE-engine'
-        Resolve = { Get-GhAsset 'horsicq/DIE-engine' @('(?i)win64.*portable.*\.zip$', '(?i)win64.*\.zip$') }
-    }
     obs        = @{ Name = 'OBS Studio'; Kind = 'exe'; Args = '/S'; Winget = 'OBSProject.OBSStudio'
         Resolve = { Get-GhAsset 'obsproject/obs-studio' @('Windows.*x64.*Installer\.exe$', 'Windows.*Installer\.exe$') }
     }
@@ -1620,8 +1608,6 @@ Add-Row 'Apps' 'app:epic' 'Epic Games Launcher' 'Epic store and launcher, instal
 Add-Row 'Apps' 'app:steam' 'Steam' 'Valve game store and launcher, installed from the official Steam CDN.' $false
 Add-Row 'Apps' 'app:discord' 'Discord' 'Voice and text chat. Installs for your user and starts automatically.' $false
 Add-Row 'Apps' 'app:brave' 'Brave' 'Privacy-focused Chromium browser with built-in ad blocking.' $false
-Add-Row 'Apps' 'app:everything' 'Everything' 'Instant file search for Windows. The latest version is found on voidtools.com.' $false
-Add-Row 'Apps' 'app:die' 'Detect It Easy (DIE)' 'File type, packer and compiler detector for reverse engineering. Latest GitHub release, portable.' $false
 Add-Row 'Apps' 'app:obs' 'OBS Studio' 'Free recording and streaming software. Latest release from the official GitHub.' $false
 
 Add-Row 'Drivers' 'drv:chipset' 'CPU / chipset drivers' 'Picks the right package for your processor automatically (Intel or AMD). Falls back to the official vendor page if there is no silent installer.' $false 84

@@ -17,7 +17,7 @@ deep does not elevate itself. If PowerShell is not running as administrator, it 
 
 Each page applies only its own selection. The button at the bottom right acts on the page you are on, plus a restore point if that option is on.
 
-- **Apps:** Rockstar Games Launcher, Epic Games Launcher, Steam, Discord, Brave, Everything, Detect It Easy (DIE), OBS Studio. Downloaded from the official sources and installed silently. Installers are kept in `Downloads\deep`.
+- **Apps:** Rockstar Games Launcher, Epic Games Launcher, Steam, Discord, Brave and OBS Studio. Downloaded from the official sources and installed silently. Installers are kept in `Downloads\deep`.
 - **Drivers:** CPU/chipset and graphics drivers, picked automatically for your hardware.
 - **Tweaks:** grouped Windows privacy, update, taskbar, gaming, search, appearance, multitasking and File Explorer options, plus 61 additional Win11Debloat presets. App-specific options for apps listed in Debloat are kept in Debloat to avoid duplicates. Includes other Windows AI controls, WSL, Windows Sandbox and Start menu layout options. New options are off until selected. Registry changes and enabled optional Windows features can be reverted with **Undo tweaks**.
 - **Debloat:** searchable app catalog with Recommended, Optional and Not Recommended classifications, descriptions, installed-app filtering and individual selection. Catalog loading runs in the background. Not Recommended apps are unselected by default. Microsoft Edge is excluded and protected from removal.
