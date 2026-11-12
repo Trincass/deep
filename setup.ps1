@@ -1,4 +1,4 @@
-$Version = '1.7.0'
+$Version = '1.8.0'
 $Repo = 'Trincass/deep'
 $Branch = 'main'
 $Raw = "https://raw.githubusercontent.com/$Repo/$Branch/setup.ps1"
@@ -196,6 +196,7 @@ public class FxRow : Control
 {
     public string Title = "";
     public string Desc = "";
+    public bool Compact = false;
     public event EventHandler CheckedChanged;
     bool hover = false;
     bool chk = false;
@@ -248,6 +249,40 @@ public class FxRow : Control
         Rectangle r = new Rectangle(0, 0, Width - 1, Height - 1);
         using (GraphicsPath p = FxUtil.Round(r, 12))
         {
+            if (Compact)
+            {
+                using (SolidBrush b = new SolidBrush(Color.FromArgb(hover ? 24 : 10, 255, 255, 255))) g.FillPath(b, p);
+                using (Pen pen = new Pen(Color.FromArgb(chk ? 105 : 38, 255, 255, 255), 1f)) g.DrawPath(pen, p);
+
+                RectangleF titleBounds = new RectangleF(16, 10, Math.Max(0, Width - 88), 19);
+                RectangleF descriptionBounds = new RectangleF(16, 34, Math.Max(0, Width - 32), Math.Max(0, Height - 40));
+                using (Font titleFont = new Font("Segoe UI Semibold", 9.5f))
+                using (Font descriptionFont = new Font("Segoe UI", 8.25f))
+                using (StringFormat titleFormat = new StringFormat())
+                using (StringFormat descriptionFormat = new StringFormat())
+                using (SolidBrush titleBrush = new SolidBrush(Color.FromArgb(226, 230, 238)))
+                {
+                    titleFormat.Trimming = StringTrimming.EllipsisCharacter;
+                    titleFormat.FormatFlags = StringFormatFlags.NoWrap;
+                    descriptionFormat.Trimming = StringTrimming.EllipsisCharacter;
+                    g.DrawString(Title, titleFont, titleBrush, titleBounds, titleFormat);
+                    g.DrawString(Desc, descriptionFont, FxUtil.Gray, descriptionBounds, descriptionFormat);
+                }
+
+                Rectangle toggle = new Rectangle(Width - 54, 10, 36, 18);
+                using (GraphicsPath togglePath = FxUtil.Round(toggle, 9))
+                using (SolidBrush trackBrush = new SolidBrush(chk ? Color.FromArgb(205, 214, 230) : Color.FromArgb(35, 38, 44)))
+                using (Pen trackPen = new Pen(Color.FromArgb(chk ? 150 : 78, 190, 198, 210), 1f))
+                using (SolidBrush knobBrush = new SolidBrush(chk ? Color.FromArgb(24, 26, 30) : Color.FromArgb(145, 151, 162)))
+                {
+                    g.FillPath(trackBrush, togglePath);
+                    g.DrawPath(trackPen, togglePath);
+                    int knobX = chk ? toggle.Right - 15 : toggle.X + 3;
+                    g.FillEllipse(knobBrush, knobX, toggle.Y + 3, 12, 12);
+                }
+                return;
+            }
+
             if (hover)
             {
                 using (SolidBrush b = new SolidBrush(Color.FromArgb(18, 255, 255, 255))) g.FillPath(b, p);
@@ -1556,8 +1591,15 @@ function Add-Row($tab, $key, $title, $desc, $on, $height = 78) {
     $r.Desc = $desc
     $r.Checked = $on
     $rowWidth = if ($tab -eq 'Tweaks') { 352 } else { 1148 }
+    if ($tab -eq 'Tweaks') {
+        $r.Compact = $true
+        $height = [Math]::Min($height, 72)
+        $r.Margin = New-Object Windows.Forms.Padding(2, 0, 2, 6)
+    }
+    else {
+        $r.Margin = New-Object Windows.Forms.Padding(2, 0, 2, 10)
+    }
     $r.Size = New-Object Drawing.Size($rowWidth, $height)
-    $r.Margin = New-Object Windows.Forms.Padding(2, 0, 2, 10)
     $Flows[$tab].Controls.Add($r)
     $Checks[$key] = $r
     $TabKeys[$tab] += $key
@@ -1584,8 +1626,8 @@ function Add-TweakSection($title) {
     $label.Text = $title.ToUpperInvariant()
     $label.ForeColor = [Drawing.Color]::FromArgb(190, 198, 210)
     $label.Font = New-Object Drawing.Font('Segoe UI Semibold', 9.5)
-    $label.Size = New-Object Drawing.Size([Math]::Max(320, $Flows['Tweaks'].ClientSize.Width - 28), 30)
-    $label.Margin = New-Object Windows.Forms.Padding(2, 10, 2, 0)
+    $label.Size = New-Object Drawing.Size([Math]::Max(320, $Flows['Tweaks'].ClientSize.Width - 28), 24)
+    $label.Margin = New-Object Windows.Forms.Padding(2, 8, 2, 0)
     $Flows['Tweaks'].Controls.Add($label)
 }
 
