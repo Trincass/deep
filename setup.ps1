@@ -1741,8 +1741,8 @@ Add-Row 'Tweaks' 'tw:w11:EnableSandbox' 'Enable Windows Sandbox' 'Enables Window
 Add-Row 'Tweaks' 'tw:w11:ResetStartMenu' 'Apply clean Start menu layout' 'Replaces the current Start menu layout with a clean default. Existing layout files are backed up for Undo Tweaks.' $false 84
 Add-Row 'Tweaks' 'tw:w11:CustomStartMenu' 'Choose Start menu layout file' 'Choose a .bin layout file to apply to the current user. Existing layout files are backed up for Undo Tweaks.' $false 84
 
-# Lay out tweak cards explicitly so maximize/restore cannot leave horizontal
-# overflow or stale FlowLayoutPanel positions behind.
+# Lay out tweak cards explicitly so maximize/restore cannot leave overflow
+# or stale control positions behind.
 $script:LayoutTweakCards = {
         if (-not $Flows['Tweaks']) { return }
         $tweaks = $Flows['Tweaks']
