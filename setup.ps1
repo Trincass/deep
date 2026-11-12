@@ -1807,11 +1807,11 @@ $form.Controls.Add($restore)
 $btnAll = New-Btn 'Select all' 'ghost' 320 ($H - 146) 84 30 'Bottom,Left'
 $btnNone = New-Btn 'Select none' 'ghost' 412 ($H - 146) 88 30 'Bottom,Left'
 $btnUndo = New-Btn 'Undo tweaks' 'ghost' 508 ($H - 146) 96 30 'Bottom,Left'
-$btnGo = New-Btn 'Install selected' 'primary' 1048 ($H - 142) 168 36 'Bottom,Right'
+$btnGo = New-Btn 'Install selected' 'primary' ($initialClientWidth - 192) ($H - 142) 168 36 'Bottom,Right'
 
 $bar = New-Object FxProgress
 $bar.Location = New-Object Drawing.Point(24, ($H - 86))
-$bar.Size = New-Object Drawing.Size(1192, 3)
+$bar.Size = New-Object Drawing.Size(($initialClientWidth - 48), 3)
 $bar.Anchor = 'Bottom,Left,Right'
 $form.Controls.Add($bar)
 
@@ -1824,12 +1824,31 @@ $txt.ForeColor = [Drawing.Color]::FromArgb(150, 156, 168)
 $txt.BorderStyle = 'None'
 $txt.Font = New-Object Drawing.Font('Consolas', 9)
 $txt.Location = New-Object Drawing.Point(24, ($H - 76))
-$txt.Size = New-Object Drawing.Size(1192, 66)
+$txt.Size = New-Object Drawing.Size(($initialClientWidth - 48), 66)
 $txt.Anchor = 'Bottom,Left,Right'
 $form.Controls.Add($txt)
 try { [W.U]::SetWindowTheme($txt.Handle, 'DarkMode_Explorer', $null) | Out-Null } catch { }
 [FxUtil]::HideScrollBars($txt)
 $txt.Add_TextChanged({ [FxUtil]::HideScrollBars($txt) })
+$script:LayoutFooter = {
+        if ($form.ClientSize.Width -lt 900) {
+            $restore.Width = 220
+            $btnAll.Left = 260
+            $btnNone.Left = 348
+            $btnUndo.Left = 440
+        }
+        else {
+            $restore.Width = 284
+            $btnAll.Left = 320
+            $btnNone.Left = 412
+            $btnUndo.Left = 508
+        }
+        $btnGo.Left = $form.ClientSize.Width - $btnGo.Width - 24
+        $bar.Width = $form.ClientSize.Width - 48
+        $txt.Width = $form.ClientSize.Width - 48
+        [FxUtil]::HideScrollBars($txt)
+    }
+$form.Add_Resize($script:LayoutFooter)
 
 $debloatPanel = $Flows['Debloat']
 $debloatSelectRecommended = New-Object FxButton
