@@ -2,7 +2,11 @@
 
 Open-source setup tool for Windows 10 and 11. After a fresh install, run one command, pick what you want with the mouse, and apply it page by page.
 
-## Run
+## Download and run
+
+Choose either option:
+
+### PowerShell
 
 1. Right click the Start button (or search "PowerShell"), then choose **Run as administrator**.
 2. Paste:
@@ -12,7 +16,12 @@ $commit = (irm https://api.github.com/repos/Trincass/deep/commits/main).sha
 irm "https://raw.githubusercontent.com/Trincass/deep/$commit/setup.ps1" | iex
 ```
 
-deep does not elevate itself. If PowerShell is not running as administrator, it stops and tells you why.
+### Executable
+
+1. [Download deep-setup.exe](https://github.com/Trincass/deep/raw/refs/heads/main/deep-setup.exe).
+2. Open it and approve the Windows administrator permission prompt.
+
+The executable launches the same setup and asks Windows for administrator permission. The PowerShell option must be started from an administrator PowerShell window.
 
 ## How it works
 
@@ -28,6 +37,7 @@ Each page applies only its own selection. The button at the bottom right acts on
 
 ```
 main branch:
+  deep-setup.exe
   setup.ps1
   README.md
 ```
@@ -36,7 +46,8 @@ The Debloat page reads the app catalog and English app descriptions from Win11De
 
 ## Notes
 
-- Review the script before running it. Running remote code with `irm | iex` is only safe if you trust the source.
+- Review the script before running it. Running remote code with `irm | iex` is only safe if you trust the source. Download the executable only from this repository.
+- Windows may show a SmartScreen warning for the executable because it is not code-signed.
 - Some vendors (AMD, parts of NVIDIA) do not offer stable silent download links. In that case deep opens the official download page.
 - Removing the Xbox apps can break Xbox sign-in for Microsoft Store and Game Pass games.
 - The Debloat app catalog and additional presets are based on [Raphire/Win11Debloat](https://github.com/Raphire/Win11Debloat), licensed under MIT. Not Recommended apps are available but start unselected; Microsoft Edge is never offered for removal.
