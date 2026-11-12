@@ -8,7 +8,8 @@ Open-source setup tool for Windows 10 and 11. After a fresh install, run one com
 2. Paste:
 
 ```
-irm https://raw.githubusercontent.com/Trincass/deep/main/setup.ps1 | iex
+$commit = (irm https://api.github.com/repos/Trincass/deep/commits/main).sha
+irm "https://raw.githubusercontent.com/Trincass/deep/$commit/setup.ps1" | iex
 ```
 
 deep does not elevate itself. If PowerShell is not running as administrator, it stops and tells you why.
