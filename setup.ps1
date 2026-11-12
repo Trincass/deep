@@ -1826,6 +1826,7 @@ $script:DebloatGrid.SelectionMode = 'FullRowSelect'
 $script:DebloatGrid.BackgroundColor = [Drawing.Color]::FromArgb(12, 12, 12)
 $script:DebloatGrid.GridColor = [Drawing.Color]::FromArgb(58, 58, 58)
 $script:DebloatGrid.BorderStyle = 'FixedSingle'
+$null = [W.U]::SetWindowTheme($script:DebloatGrid.Handle, 'DarkMode_Explorer', $null)
 $script:DebloatGrid.EnableHeadersVisualStyles = $false
 $script:DebloatGrid.ColumnHeadersDefaultCellStyle.BackColor = [Drawing.Color]::FromArgb(38, 38, 38)
 $script:DebloatGrid.ColumnHeadersDefaultCellStyle.ForeColor = [Drawing.Color]::White
