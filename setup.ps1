@@ -1,4 +1,4 @@
-$Version = '1.12.0'
+$Version = '1.12.1'
 $Repo = 'Trincass/deep'
 $Branch = 'main'
 $Raw = "https://raw.githubusercontent.com/$Repo/$Branch/setup.ps1"
@@ -83,6 +83,8 @@ public static class FxUtil
 
 public class FxScrollPanel : Panel
 {
+    public bool HideScrollBars = true;
+
     public FxScrollPanel()
     {
         AutoScroll = true;
@@ -92,20 +94,25 @@ public class FxScrollPanel : Panel
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        FxUtil.HideScrollBars(this);
+        UpdateScrollBarVisibility();
     }
 
     protected override void OnLayout(LayoutEventArgs e)
     {
         base.OnLayout(e);
-        FxUtil.HideScrollBars(this);
+        UpdateScrollBarVisibility();
     }
 
     protected override void WndProc(ref Message m)
     {
         base.WndProc(ref m);
         if (m.Msg == 0x0005 || m.Msg == 0x0085 || m.Msg == 0x0018 || m.Msg == 0x007D)
-            FxUtil.HideScrollBars(this);
+            UpdateScrollBarVisibility();
+    }
+
+    void UpdateScrollBarVisibility()
+    {
+        if (HideScrollBars) FxUtil.HideScrollBars(this);
     }
 }
 
@@ -1590,6 +1597,7 @@ foreach ($n in 'Apps', 'Drivers', 'Tweaks', 'Debloat') {
         $Flows[$n] = $f
 
         $script:TweakCardsPanel = New-Object FxScrollPanel
+        $script:TweakCardsPanel.HideScrollBars = $false
         $script:TweakCardsPanel.Location = New-Object Drawing.Point(8, 8)
         $script:TweakCardsPanel.Size = New-Object Drawing.Size(($f.ClientSize.Width - 16), ($f.ClientSize.Height - 16))
         $script:TweakCardsPanel.Anchor = 'Top,Bottom,Left,Right'
@@ -1771,7 +1779,7 @@ Add-Row 'Tweaks' 'tw:w11:CustomStartMenu' 'Choose Start menu layout file' 'Choos
 $script:LayoutTweakCards = {
         if (-not $script:TweakCardsPanel) { return }
         $tweaks = $script:TweakCardsPanel
-        $scrollTop = -$tweaks.AutoScrollPosition.Y
+        $scrollTop = Math.Max(0, -$tweaks.AutoScrollPosition.Y)
         $available = [Math]::Max(320, $tweaks.ClientSize.Width - [Windows.Forms.SystemInformation]::VerticalScrollBarWidth - 32)
         $gap = 12
         $columns = [Math]::Min(3, [Math]::Max(1, [Math]::Floor(($available + $gap) / 340)))
@@ -1807,8 +1815,9 @@ $script:LayoutTweakCards = {
             }
             if ($column -gt 0) { $y += $rowHeight + $gap }
             $tweaks.AutoScrollMinSize = New-Object Drawing.Size(0, ($y + 12))
-            $maxScroll = [Math]::Max(0, $tweaks.AutoScrollMinSize.Height - $tweaks.ClientSize.Height)
-            $tweaks.AutoScrollPosition = New-Object Drawing.Point(0, [Math]::Min($scrollTop, $maxScroll))
+            $maxScroll = [Math]::Max(0, $tweaks.DisplayRectangle.Height - $tweaks.ClientSize.Height)
+            $targetScroll = [Math]::Min($scrollTop, $maxScroll)
+            $tweaks.AutoScrollPosition = New-Object Drawing.Point(0, $targetScroll)
         }
         finally {
             $tweaks.ResumeLayout($true)
