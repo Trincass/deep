@@ -1779,7 +1779,7 @@ Add-Row 'Tweaks' 'tw:w11:CustomStartMenu' 'Choose Start menu layout file' 'Choos
 $script:LayoutTweakCards = {
         if (-not $script:TweakCardsPanel) { return }
         $tweaks = $script:TweakCardsPanel
-        $scrollTop = Math.Max(0, -$tweaks.AutoScrollPosition.Y)
+        $scrollTop = [Math]::Max(0, -$tweaks.AutoScrollPosition.Y)
         $available = [Math]::Max(320, $tweaks.ClientSize.Width - [Windows.Forms.SystemInformation]::VerticalScrollBarWidth - 32)
         $gap = 12
         $columns = [Math]::Min(3, [Math]::Max(1, [Math]::Floor(($available + $gap) / 340)))
