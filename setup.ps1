@@ -1,4 +1,4 @@
-$Version = '1.13.1'
+$Version = '1.13.2'
 $Repo = 'Trincass/deep'
 $Branch = 'main'
 $Raw = "https://raw.githubusercontent.com/$Repo/$Branch/setup.ps1"

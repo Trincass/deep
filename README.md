@@ -19,9 +19,9 @@ irm "https://raw.githubusercontent.com/Trincass/deep/$commit/setup.ps1" | iex
 ### Executable
 
 1. [Download deep-setup.exe](https://github.com/Trincass/deep/releases/latest/download/deep-setup.exe).
-2. Open it and approve the Windows administrator permission prompt.
+2. Open it and approve the required Windows administrator permission prompt. The executable will not start if you cancel.
 
-The executable launches the same setup and asks Windows for administrator permission. The PowerShell option must be started from an administrator PowerShell window.
+The executable launches the same setup. Windows requires administrator permission before the executable starts. The PowerShell option must be started from an administrator PowerShell window.
 
 ## How it works
 
