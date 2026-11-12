@@ -1772,7 +1772,7 @@ $script:LayoutTweakCards = {
                     $y += $control.Height + $gap
                 }
                 elseif ($control -is [FxRow]) {
-                    $control.Location = New-Object Drawing.Point(($x + $column * ($cardWidth + $gap)), $y)
+                    $control.Location = [Drawing.Point]::new([int]($x + $column * ($cardWidth + $gap)), [int]$y)
                     $control.Size = New-Object Drawing.Size($cardWidth, $control.Height)
                     $rowHeight = [Math]::Max($rowHeight, $control.Height)
                     $column++
