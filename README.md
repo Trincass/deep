@@ -18,7 +18,7 @@ irm "https://raw.githubusercontent.com/Trincass/deep/$commit/setup.ps1" | iex
 
 ### Executable
 
-1. [Download deep-setup.exe](https://github.com/Trincass/deep/releases/latest/download/deep-setup.exe).
+1. [Download optimizer.exe](https://github.com/Trincass/deep/releases/latest/download/optimizer.exe).
 2. Open it and approve the required Windows administrator permission prompt. The executable will not start if you cancel.
 
 The executable launches the same setup. Windows requires administrator permission before the executable starts. The PowerShell option must be started from an administrator PowerShell window.
@@ -39,7 +39,7 @@ Each page applies only its own selection. The button at the bottom right acts on
 main branch:
   DeepLauncher.cs
   DeepLauncher.manifest
-  deep-setup.exe
+  optimizer.exe
   setup.ps1
   README.md
 ```
