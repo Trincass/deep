@@ -1,4 +1,4 @@
-$Version = '1.8.0'
+$Version = '1.9.0'
 $Repo = 'Trincass/deep'
 $Branch = 'main'
 $Raw = "https://raw.githubusercontent.com/$Repo/$Branch/setup.ps1"
@@ -67,7 +67,6 @@ public class FxForm : Form
     class Particle { public float X, Y, Size, Speed, Phase; public int Level; }
     static int[] levels = new int[] { 70, 110, 150, 190, 230 };
     SolidBrush[] brushes = new SolidBrush[5];
-    Pen[] pens = new Pen[5];
     Pen line = new Pen(Color.FromArgb(40, 255, 255, 255), 1f);
     List<Particle> list = new List<Particle>();
     Random rnd = new Random();
@@ -87,15 +86,13 @@ public class FxForm : Form
         for (int i = 0; i < 5; i++)
         {
             brushes[i] = new SolidBrush(Color.FromArgb(levels[i], 255, 255, 255));
-            pens[i] = new Pen(Color.FromArgb(levels[i] - 20, 255, 255, 255), 1f);
         }
-        timer.Interval = 60;
+        timer.Interval = 50;
         timer.Tick += delegate
         {
+            if (Mode == "off" || WindowState == FormWindowState.Minimized) return;
             Step();
-            // Redraw only the animated form background. Invalidating every child
-            // control at 25 FPS makes the tabs and Debloat grid flicker while switching.
-            if (Mode != "off" && WindowState != FormWindowState.Minimized) Invalidate();
+            Invalidate();
         };
         timer.Start();
     }
@@ -120,6 +117,7 @@ public class FxForm : Form
 
     public void SetMode(string m)
     {
+        if (m != "snow" && m != "off") throw new ArgumentException("Unsupported theme mode.", "m");
         Mode = m;
         list.Clear();
         Invalidate(true);
@@ -137,26 +135,19 @@ public class FxForm : Form
             p.Speed = 0.5f + p.Size * 0.5f;
             p.Level = Math.Min(4, (int)((p.Size - 1.3f) / 0.85f));
         }
-        else
-        {
-            p.Size = 10f + (float)rnd.NextDouble() * 18f;
-            p.Speed = 9f + p.Size * 0.5f;
-            p.Level = Math.Min(4, (int)((p.Size - 10f) / 5.6f));
-        }
         return p;
     }
 
     void Step()
     {
         if (ClientSize.Width < 10 || ClientSize.Height < 10) return;
-        int target = Mode == "snow" ? 100 : (Mode == "rain" ? 90 : 0);
+        int target = Math.Min(85, Math.Max(30, (ClientSize.Width * ClientSize.Height) / 18000));
         while (list.Count < target) list.Add(Make(true));
         while (list.Count > target) list.RemoveAt(list.Count - 1);
         foreach (Particle p in list)
         {
             p.Y += p.Speed;
-            if (Mode == "snow") p.X += (float)Math.Sin((p.Y + p.Phase) / 30f) * 0.6f;
-            else p.X -= p.Speed * 0.1f;
+            p.X += (float)Math.Sin((p.Y + p.Phase) / 30f) * 0.6f;
             if (p.Y > ClientSize.Height + 20 || p.X < -30 || p.X > ClientSize.Width + 30)
             {
                 Particle q = Make(false);
@@ -169,15 +160,10 @@ public class FxForm : Form
     protected override void OnPaint(PaintEventArgs e)
     {
         Graphics g = e.Graphics;
-        g.SmoothingMode = SmoothingMode.AntiAlias;
         g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
         if (Mode == "snow")
         {
             foreach (Particle p in list) g.FillEllipse(brushes[p.Level], p.X, p.Y, p.Size, p.Size);
-        }
-        else if (Mode == "rain")
-        {
-            foreach (Particle p in list) g.DrawLine(pens[p.Level], p.X, p.Y, p.X + p.Size * 0.1f, p.Y - p.Size);
         }
         g.DrawString(Title, FxUtil.BigFont, Brushes.White, 30, 14);
         g.DrawString(Sub, FxUtil.SubFont, FxUtil.Gray, 36, 72);
