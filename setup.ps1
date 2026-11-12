@@ -1,4 +1,4 @@
-$Version = '1.11.0'
+$Version = '1.11.1'
 $Repo = 'Trincass/deep'
 $Branch = 'main'
 $Raw = "https://raw.githubusercontent.com/$Repo/$Branch/setup.ps1"
@@ -1503,7 +1503,9 @@ $form.Text = 'deep'
 $form.ClientSize = New-Object Drawing.Size($initialClientWidth, $initialClientHeight)
 $minClientWidth = [Math]::Min(900, $initialClientWidth)
 $minClientHeight = [Math]::Min(600, $initialClientHeight)
-$form.MinimumSize = $form.SizeFromClientSize((New-Object Drawing.Size($minClientWidth, $minClientHeight)))
+$nonClientWidth = $form.Width - $form.ClientSize.Width
+$nonClientHeight = $form.Height - $form.ClientSize.Height
+$form.MinimumSize = [Drawing.Size]::new(($minClientWidth + $nonClientWidth), ($minClientHeight + $nonClientHeight))
 $form.StartPosition = 'CenterScreen'
 $form.Font = New-Object Drawing.Font('Segoe UI', 9.5)
 $form.Title = 'deep'
@@ -1619,7 +1621,8 @@ function Add-Row($tab, $key, $title, $desc, $on, $height = 78) {
     }
     $r.Size = New-Object Drawing.Size($rowWidth, $height)
     if ($tab -ne 'Tweaks') {
-        $r.Location = New-Object Drawing.Point(12, $Flows[$tab].Controls.Count * 88 + 8)
+        $rowY = [int](8 + ($Flows[$tab].Controls.Count * 88))
+        $r.Location = [Drawing.Point]::new(12, $rowY)
     }
     $Flows[$tab].Controls.Add($r)
     $Checks[$key] = $r
