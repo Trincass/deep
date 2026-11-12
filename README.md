@@ -44,7 +44,7 @@ main branch:
   README.md
 ```
 
-`DeepLauncher.cs` is the C# source for the executable launcher. It embeds and runs `setup.ps1`; `DeepLauncher.manifest` makes Windows require administrator permission before launch.
+`DeepLauncher.cs` is the C# source for the executable launcher. It embeds and runs `setup.ps1`; `DeepLauncher.manifest` makes Windows require administrator permission before launch. The launcher uses a process-only PowerShell execution-policy override for the embedded script; it does not change Windows' saved execution-policy settings.
 
 The Debloat page reads the app catalog and English app descriptions from Win11Debloat and saves a local copy for later use.
 
