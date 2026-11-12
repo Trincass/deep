@@ -1,7 +1,6 @@
-$Version = '1.5.0'
+$Version = '1.7.0'
 $Repo = 'Trincass/deep'
 $Branch = 'main'
-$FiveMBranch = 'fivem'
 $Raw = "https://raw.githubusercontent.com/$Repo/$Branch/setup.ps1"
 
 $ErrorActionPreference = 'Continue'
@@ -197,13 +196,20 @@ public class FxRow : Control
 {
     public string Title = "";
     public string Desc = "";
+    public event EventHandler CheckedChanged;
     bool hover = false;
     bool chk = false;
 
     public bool Checked
     {
         get { return chk; }
-        set { chk = value; Invalidate(); }
+        set
+        {
+            if (chk == value) return;
+            chk = value;
+            Invalidate();
+            if (CheckedChanged != null) CheckedChanged(this, EventArgs.Empty);
+        }
     }
 
     public FxRow()
@@ -406,6 +412,10 @@ $Data = Join-Path $env:ProgramData 'deep'
 New-Item -ItemType Directory -Force $Dl, $Data | Out-Null
 $BackupFile = Join-Path $Data 'backup.json'
 $PlanFile = Join-Path $Data 'powerplan.txt'
+$DeletedRegistryKeysFile = Join-Path $Data 'deleted-registry-keys.json'
+$OptionalFeatureBackupFile = Join-Path $Data 'optional-features.json'
+$StartMenuBackupFile = Join-Path $Data 'start-menu-backup.json'
+$StartMenuBackupDir = Join-Path $Data 'start-menu-backups'
 
 function Wait-Proc($p) {
     $null = $p.Handle
@@ -462,7 +472,6 @@ function Install-Winget($id) {
 }
 
 $AppDefs = [ordered]@{
-    fivem      = @{ Name = 'FiveM'; Kind = 'fivem'; Url = 'https://runtime.fivem.net/client/FiveM.exe'; File = 'FiveM.exe' }
     rockstar   = @{ Name = 'Rockstar Games Launcher'; Kind = 'exe'; Url = 'https://gamedownloads.rockstargames.com/public/installer/Rockstar-Games-Launcher.exe'; File = 'Rockstar-Games-Launcher.exe'; Args = '/S' }
     epic       = @{ Name = 'Epic Games Launcher'; Kind = 'msi'; Url = 'https://launcher-public-service-prod06.ol.epicgames.com/launcher/api/installer/download/EpicGamesLauncherInstaller.msi'; File = 'EpicGamesLauncherInstaller.msi'; Winget = 'EpicGames.EpicGamesLauncher' }
     steam      = @{ Name = 'Steam'; Kind = 'exe'; Url = 'https://cdn.akamai.steamstatic.com/client/installer/SteamSetup.exe'; File = 'SteamSetup.exe'; Args = '/S'; Winget = 'Valve.Steam' }
@@ -557,13 +566,6 @@ function Install-App($key) {
                 $dest = Join-Path $env:ProgramFiles $a.Folder
                 $done = Install-ZipApp $path $dest $a.Exe $a.Name
             }
-            'fivem' {
-                $dest = Join-Path $env:LOCALAPPDATA 'FiveM'
-                New-Item -ItemType Directory -Force $dest | Out-Null
-                Copy-Item $path (Join-Path $dest 'FiveM.exe') -Force
-                New-Shortcut (Join-Path $dest 'FiveM.exe') 'FiveM'
-                $done = $true
-            }
         }
     }
     catch { Write-Log "Direct install failed: $($_.Exception.Message)" }
@@ -623,42 +625,6 @@ function Get-GpuName {
     $pick
 }
 
-function Install-FiveMConfig {
-    $dest = Join-Path $env:APPDATA 'CitizenFX'
-    New-Item -ItemType Directory -Force $dest | Out-Null
-    if (Get-Process -Name 'FiveM*' -ErrorAction SilentlyContinue) {
-        Write-Log 'FiveM is running. Close it first, or it may overwrite these files when it exits.'
-    }
-    $base = "https://raw.githubusercontent.com/$Repo/$FiveMBranch/fivem"
-    $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-    foreach ($name in 'gta5_settings.xml', 'fivem.cfg') {
-        $src = $null
-        if ($PSScriptRoot) {
-            $local = Join-Path $PSScriptRoot "fivem\$name"
-            if (Test-Path $local) { $src = $local }
-        }
-        if (-not $src) {
-            if ($Repo -like 'YOUR_USER*') { throw 'The repository name is not set in setup.ps1 (line 2).' }
-            $src = Get-File "$base/$name" $name
-        }
-        $text = [IO.File]::ReadAllText($src)
-        if ($name -eq 'gta5_settings.xml') {
-            $gpu = Get-GpuName
-            if ($gpu) {
-                $text = $text -replace '(<VideoCardDescription>).*?(</VideoCardDescription>)', ('${1}' + $gpu + '${2}')
-                Write-Log "Graphics card set to: $gpu"
-            }
-        }
-        else {
-            $text = $text -replace '(?m)^seta "cl_nickname".*\r?\n', ''
-        }
-        $target = Join-Path $dest $name
-        if (Test-Path $target) { Copy-Item $target "$target.bak-$stamp" -Force }
-        [IO.File]::WriteAllText($target, $text, (New-Object Text.UTF8Encoding($false)))
-        Write-Log "Placed $name in $dest"
-    }
-}
-
 function Load-Backup {
     if (Test-Path $BackupFile) {
         $entries = Get-Content $BackupFile -Raw | ConvertFrom-Json
@@ -666,19 +632,84 @@ function Load-Backup {
     }
 }
 
-function Set-Reg($Path, $Name, $Value, $Type = 'DWord') {
-    $keyExisted = Test-Path -LiteralPath $Path
+function Resolve-RegPath($Path) {
+    if ($Path -match '^(?<hive>HKCU|HKLM|HKCR|HKU|HKCC):\\(?<subkey>.*)$') {
+        $hive = $Matches.hive.ToUpperInvariant()
+        $subkey = $Matches.subkey
+    }
+    elseif ($Path -match '^(?<hive>HKEY_CURRENT_USER|HKEY_LOCAL_MACHINE|HKEY_CLASSES_ROOT|HKEY_USERS|HKEY_CURRENT_CONFIG)\\(?<subkey>.*)$') {
+        $hive = switch ($Matches.hive.ToUpperInvariant()) {
+            'HKEY_CURRENT_USER' { 'HKCU' }
+            'HKEY_LOCAL_MACHINE' { 'HKLM' }
+            'HKEY_CLASSES_ROOT' { 'HKCR' }
+            'HKEY_USERS' { 'HKU' }
+            'HKEY_CURRENT_CONFIG' { 'HKCC' }
+        }
+        $subkey = $Matches.subkey
+    }
+    else { throw "Unsupported registry path: $Path" }
+
+    $root = switch ($hive) {
+        'HKCU' { [Microsoft.Win32.Registry]::CurrentUser }
+        'HKLM' { [Microsoft.Win32.Registry]::LocalMachine }
+        'HKCR' { [Microsoft.Win32.Registry]::ClassesRoot }
+        'HKU'  { [Microsoft.Win32.Registry]::Users }
+        'HKCC' { [Microsoft.Win32.Registry]::CurrentConfig }
+        default { throw "Unsupported registry hive: $hive" }
+    }
+    [pscustomobject]@{ Hive = $hive; SubKey = $subkey; Root = $root }
+}
+
+function Write-RegRaw($Path, $Name, $Value, $Type) {
+    $resolved = Resolve-RegPath $Path
+    $key = $resolved.Root.CreateSubKey($resolved.SubKey)
+    if (-not $key) { throw "Could not open registry key: $Path" }
+    try {
+        $valueName = if ($Name -eq '(default)') { '' } else { $Name }
+        $kind = [Microsoft.Win32.RegistryValueKind]::Parse([Microsoft.Win32.RegistryValueKind], $Type, $true)
+        switch ($kind) {
+            'DWord' {
+                $number = [UInt64]$Value
+                $Value = if ($number -gt [Int32]::MaxValue) { [UInt32]$number } else { [Int32]$number }
+            }
+            'QWord' { $Value = [Int64]$Value }
+            'Binary' { $Value = [byte[]]@($Value | ForEach-Object { [byte]$_ }) }
+            'MultiString' { $Value = [string[]]@($Value) }
+        }
+        $key.SetValue($valueName, $Value, $kind)
+    }
+    finally { $key.Dispose() }
+}
+
+function Remove-RegValueRaw($Path, $Name) {
+    $resolved = Resolve-RegPath $Path
+    $key = $resolved.Root.OpenSubKey($resolved.SubKey, $true)
+    if (-not $key) { return }
+    try {
+        $valueName = if ($Name -eq '(default)') { '' } else { $Name }
+        $key.DeleteValue($valueName, $false)
+    }
+    finally { $key.Dispose() }
+}
+
+function Save-RegValueBackup($Path, $Name, $DefaultType = 'DWord') {
+    $resolved = Resolve-RegPath $Path
     $valueExisted = $false
     $oldValue = $null
-    $oldType = $Type
-    if ($keyExisted) {
-        $key = Get-Item -LiteralPath $Path -ErrorAction Stop
+    $oldType = $DefaultType
+    $keyExisted = $false
+    $key = $resolved.Root.OpenSubKey($resolved.SubKey)
+    if ($key) {
+        $keyExisted = $true
+        try {
         $valueName = if ($Name -eq '(default)') { '' } else { $Name }
         $valueExisted = $key.GetValueNames() -contains $valueName
         if ($valueExisted) {
             $oldValue = $key.GetValue($valueName, $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
             $oldType = $key.GetValueKind($valueName).ToString()
         }
+        }
+        finally { $key.Dispose() }
     }
     $list = @(Load-Backup)
     if (-not ($list | Where-Object { $_.Path -eq $Path -and $_.Name -eq $Name })) {
@@ -690,10 +721,78 @@ function Set-Reg($Path, $Name, $Value, $Type = 'DWord') {
             Value      = $oldValue
             Type       = $oldType
         }
-        ConvertTo-Json -InputObject @($list) -Depth 3 | Set-Content $BackupFile
+        ConvertTo-Json -InputObject @($list) -Depth 10 | Set-Content -LiteralPath $BackupFile -Encoding UTF8
     }
-    if (-not $keyExisted) { New-Item -Path $Path -Force | Out-Null }
-    Set-ItemProperty -Path $Path -Name $Name -Value $Value -Type $Type
+}
+
+function Set-Reg($Path, $Name, $Value, $Type = 'DWord') {
+    Save-RegValueBackup $Path $Name $Type
+    Write-RegRaw $Path $Name $Value $Type
+}
+
+function Remove-RegValue($Path, $Name) {
+    Save-RegValueBackup $Path $Name
+    Remove-RegValueRaw $Path $Name
+}
+
+function Get-RegKeySnapshot($Key) {
+    $values = @()
+    foreach ($valueName in $Key.GetValueNames()) {
+        $displayName = if ($valueName -eq '') { '(default)' } else { $valueName }
+        $value = $Key.GetValue($valueName, $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+        $values += [pscustomobject]@{
+            Name = $displayName
+            Type = $Key.GetValueKind($valueName).ToString()
+            Value = $value
+        }
+    }
+    $subKeys = @()
+    foreach ($name in $Key.GetSubKeyNames()) {
+        $child = $Key.OpenSubKey($name)
+        if ($child) {
+            try { $subKeys += [pscustomobject]@{ Name = $name; Snapshot = (Get-RegKeySnapshot $child) } }
+            finally { $child.Dispose() }
+        }
+    }
+    [pscustomobject]@{ Values = $values; SubKeys = $subKeys }
+}
+
+function Save-DeletedRegistryKeyBackup($Hive, $Path, $Snapshot) {
+    $entries = @()
+    if (Test-Path -LiteralPath $DeletedRegistryKeysFile) {
+        $entries = @(Get-Content -LiteralPath $DeletedRegistryKeysFile -Raw | ConvertFrom-Json)
+    }
+    if (-not ($entries | Where-Object { $_.Hive -eq $Hive -and $_.Path -eq $Path })) {
+        $entries += [pscustomobject]@{ Hive = $Hive; Path = $Path; Snapshot = $Snapshot }
+        ConvertTo-Json -InputObject @($entries) -Depth 30 | Set-Content -LiteralPath $DeletedRegistryKeysFile -Encoding UTF8
+    }
+}
+
+function Remove-RegKey($Hive, $Path) {
+    $registryPath = "$Hive\$Path"
+    $resolved = Resolve-RegPath $registryPath
+    $key = $resolved.Root.OpenSubKey($resolved.SubKey)
+    if (-not $key) { return }
+    try { $snapshot = Get-RegKeySnapshot $key }
+    finally { $key.Dispose() }
+    Save-DeletedRegistryKeyBackup $resolved.Hive $resolved.SubKey $snapshot
+
+    $parentPath = Split-Path -Path $resolved.SubKey -Parent
+    $leaf = Split-Path -Path $resolved.SubKey -Leaf
+    $parent = $resolved.Root.OpenSubKey($parentPath, $true)
+    if (-not $parent) { throw "Could not open parent registry key for $registryPath" }
+    try { $parent.DeleteSubKeyTree($leaf) }
+    finally { $parent.Dispose() }
+}
+
+function Restore-RegKeySnapshot($Hive, $Path, $Snapshot) {
+    $registryPath = "$Hive`:\$Path"
+    foreach ($value in $Snapshot.Values) {
+        Write-RegRaw $registryPath $value.Name $value.Value $value.Type
+    }
+    foreach ($child in $Snapshot.SubKeys) {
+        Restore-RegKeySnapshot $Hive (Join-Path $Path $child.Name) $child.Snapshot
+    }
 }
 
 $TweakActions = @{
@@ -814,6 +913,253 @@ $TweakActions = @{
     }
 }
 
+# Additional registry presets and labels adapted from Raphire/Win11Debloat (MIT):
+# https://github.com/Raphire/Win11Debloat
+$Win11FeatureBundleBase64 = @'
+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
+'@
+$featureStream = [IO.MemoryStream]::new([Convert]::FromBase64String(($Win11FeatureBundleBase64 -replace '\s', '')))
+$featureGzip = [IO.Compression.GZipStream]::new($featureStream, [IO.Compression.CompressionMode]::Decompress)
+$featureReader = [IO.StreamReader]::new($featureGzip, [Text.Encoding]::UTF8)
+try { $script:Win11DebloatFeatures = ConvertFrom-Json -InputObject $featureReader.ReadToEnd() }
+finally {
+    $featureReader.Dispose()
+    $featureGzip.Dispose()
+    $featureStream.Dispose()
+}
+$script:Win11DebloatFeatureById = @{}
+foreach ($feature in $script:Win11DebloatFeatures) { $script:Win11DebloatFeatureById[$feature.Id] = $feature }
+
+$script:StartMenuTemplateBase64 = '4nrhSwH8TRucAIEL3m5RhU5aX0cAW7FJilySr5CE+V6aoBj7A+HZAaADAABc9u55LN8F4borYyXEGl8Q5+RZ+qERszeqUhhZXDvcjTF6rgdprauITLqPgMVMbSZbRsLN/O5uMjSLEr6nWYIwsMJkZMnZyZrhR3PugUhUKOYDqwySCY6/CPkL/Ooz/5j2R2hwWRGqc7ZsJxDFM1DWofjUiGjDUny+Y8UjowknQVaPYao0PC4bygKEbeZqCqRvSgPalSc53OFqCh2FHydzl09fChaos385QvF40EDEgSO8U9/dntAeNULwuuZBi7BkWSIOmWN1l4e+TZbtSJXwn+EINAJhRHyCSNeku21dsw+cMoLorMKnRmhJMLvE+CCdgNKIaPo/Krizva1+bMsI8bSkV/CxaCTLXodb/NuBYCsIHY1sTvbwSBRNMPvccw43RJCUKZRkBLkCVfW24ANbLfHXofHDMLxxFNUpBPSgzGHnueHknECcf6J4HCFBqzvSH1TjQ3S6J8tq2yaQ+jFNkxGRMushdXNNiTNjDFYMJNvgRL2lu63NPE+Cxy+IKC1NdKLweFdOGZr2mvKAw7t/fxmCTieUgLkegDomZbHL6anjy4SkjSCnfTBUNtxc0X3VJiha4wq/ArRrTtVnzcUcX+CI4BNTicx+X2eXugI+EHKjgaQS7fXHqQGEUMUeHMCXlgWUZ5kE3LFTjVifyVIGqYNDuqt7T9l7DWByiuRariySa7tiN1gA2ALKYlRsjsQL7xpxHnT1hi/9b+UuyC46cYQaDUcKDc4BGReJP2gDIyZfudLpgUPc7YfH9doiMcWimSylbKFtsI3Mfo0HONxet5XjzjDoziduYk2dFoFfz19uaRcOHtASKzaGdtk6RC+Tm4BbU/7PlbvHEKJZ720AxOQkzU9U8RWAHHsPUVfWzYoQc2dN8OQ/JlUAqe8+PI05ST4m3LoUpBKB+oU0H84aet5etGpIi4CthvazGencFObWJWNRzxk9BXIX2YoAdXB8b7JFwlxVdhgzZK0zkkrzSSmX9iJcNoi6Tp+RtnljzLTAv6xh8gwytIW5F2e5sVh7aiqo4sji0aE+ToqyNPV7eE9Idi2ZNeEbnJ9LX127uOl5jB280hs0caXLUrYiR15+Y31wtlD8JVeTDxDDac6v+e3C4VX+28mg9bYQ7NGYXZc7yZANC/nWTn+/hkTZUvR0gi+PUz4o/DSdKzbvVCAlqdjArcKkWW4r/WKUSLskoOKRPxdNLPVBl2S6blje4LvBzulpeHWubXWfCW4ILuOI'
+
+function Invoke-Win11RegistryFeature($FeatureId) {
+    $feature = $script:Win11DebloatFeatureById[$FeatureId]
+    if (-not $feature) { throw "Unknown Windows feature preset: $FeatureId" }
+    $build = [int]$script:WindowsBuild
+    if ($feature.MinVersion -and $build -lt [int]$feature.MinVersion) {
+        Write-Log "Skipped $($feature.Label): requires Windows build $($feature.MinVersion) or newer."
+        return $false
+    }
+    if ($feature.MaxVersion -and $build -gt [int]$feature.MaxVersion) {
+        Write-Log "Skipped $($feature.Label): supported only through Windows build $($feature.MaxVersion)."
+        return $false
+    }
+    foreach ($operation in $feature.Operations) {
+        $hive = switch ($operation.Hive) {
+            'HKEY_CURRENT_USER' { 'HKCU' }
+            'HKEY_LOCAL_MACHINE' { 'HKLM' }
+            'HKEY_CLASSES_ROOT' { 'HKCR' }
+            'HKEY_USERS' { 'HKU' }
+            'HKEY_CURRENT_CONFIG' { 'HKCC' }
+            default { throw "Unsupported registry hive in $FeatureId`: $($operation.Hive)" }
+        }
+        if ($operation.DeleteKey) {
+            Remove-RegKey $hive $operation.Path
+            continue
+        }
+        $path = "$hive`:\$($operation.Path)"
+        if ($operation.Delete) { Remove-RegValue $path $operation.Name }
+        else { Set-Reg $path $operation.Name $operation.Value $operation.Type }
+    }
+    if ($feature.RequiresReboot) {
+        $script:RebootRequired = $true
+        Write-Log "$($feature.Label) may require a Windows restart."
+    }
+    if ($FeatureId -eq 'DisableCopilot') { Remove-CurrentUserCopilot }
+}
+
+function Get-Win11ExclusiveGroup($FeatureId) {
+    switch ($FeatureId) {
+        { $_ -in 'DisableDesktopSpotlight', 'EnableDesktopSpotlight' } { return 'spotlight-mode' }
+        { $_ -in 'DisableStartAllApps', 'StartAllAppsCategory', 'StartAllAppsGrid', 'StartAllAppsList' } { return 'start-all-apps' }
+        { $_ -in 'HideSearchTb', 'ShowSearchIconTb', 'ShowSearchLabelTb', 'ShowSearchBoxTb' } { return 'taskbar-search' }
+        { $_ -in 'HideTabsInAltTab', 'Show3TabsInAltTab', 'Show5TabsInAltTab', 'Show20TabsInAltTab' } { return 'alt-tab' }
+        { $_ -in 'CombineTaskbarAlways', 'CombineTaskbarWhenFull', 'CombineTaskbarNever' } { return 'taskbar-combine' }
+        { $_ -in 'CombineMMTaskbarAlways', 'CombineMMTaskbarWhenFull', 'CombineMMTaskbarNever' } { return 'taskbar-combine-multimonitor' }
+        { $_ -in 'MMTaskbarModeAll', 'MMTaskbarModeMainActive', 'MMTaskbarModeActive' } { return 'taskbar-multimonitor-mode' }
+        { $_ -in 'ExplorerToHome', 'ExplorerToThisPC', 'ExplorerToDownloads', 'ExplorerToOneDrive' } { return 'explorer-start-location' }
+        { $_ -in 'ShowDriveLettersFirst', 'ShowDriveLettersLast', 'HideDriveLetters' } { return 'drive-letter-display' }
+        default { return $null }
+    }
+}
+
+function Save-OptionalWindowsFeatureState($FeatureName) {
+    $entries = @()
+    if (Test-Path -LiteralPath $OptionalFeatureBackupFile) {
+        $entries = @(Get-Content -LiteralPath $OptionalFeatureBackupFile -Raw | ConvertFrom-Json)
+    }
+    if ($entries | Where-Object { $_.Name -eq $FeatureName }) { return }
+    $state = Get-WindowsOptionalFeature -Online -FeatureName $FeatureName -ErrorAction Stop
+    $entries += [pscustomobject]@{ Name = $FeatureName; State = $state.State.ToString() }
+    ConvertTo-Json -InputObject @($entries) -Depth 4 | Set-Content -LiteralPath $OptionalFeatureBackupFile -Encoding UTF8
+}
+
+function Enable-TrackedWindowsFeature($FeatureName) {
+    $state = Get-WindowsOptionalFeature -Online -FeatureName $FeatureName -ErrorAction Stop
+    if ($state.State -eq 'Enabled') {
+        Write-Log "$FeatureName is already enabled."
+        return
+    }
+    Save-OptionalWindowsFeatureState $FeatureName
+    $result = Enable-WindowsOptionalFeature -Online -FeatureName $FeatureName -All -NoRestart -ErrorAction Stop
+    if ($result.RestartNeeded) { $script:RebootRequired = $true }
+    Write-Log "Enabled Windows feature: $FeatureName"
+}
+
+function Enable-WindowsSandbox {
+    Enable-TrackedWindowsFeature 'Containers-DisposableClientVM'
+}
+
+function Enable-WSL {
+    Enable-TrackedWindowsFeature 'Microsoft-Windows-Subsystem-Linux'
+    Enable-TrackedWindowsFeature 'VirtualMachinePlatform'
+}
+
+function Get-StartMenuTargets($AllUsers) {
+    $packagePath = 'AppData\Local\Packages\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\LocalState'
+    if (-not $AllUsers) {
+        return @([pscustomobject]@{
+            Directory = Join-Path $env:LOCALAPPDATA 'Packages\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\LocalState'
+        })
+    }
+    $profiles = @(Get-CimInstance Win32_UserProfile -ErrorAction Stop |
+        Where-Object { -not $_.Special -and $_.LocalPath -and (Test-Path -LiteralPath $_.LocalPath) } |
+        ForEach-Object { Join-Path $_.LocalPath $packagePath })
+    $profiles += Join-Path $env:SystemDrive "Users\Default\$packagePath"
+    @($profiles | Select-Object -Unique | ForEach-Object { [pscustomobject]@{ Directory = $_ } })
+}
+
+function Save-StartMenuFileBackup($Path, $DirectoryExisted) {
+    $entries = @()
+    if (Test-Path -LiteralPath $StartMenuBackupFile) {
+        $entries = @(Get-Content -LiteralPath $StartMenuBackupFile -Raw | ConvertFrom-Json)
+    }
+    if ($entries | Where-Object { $_.Path -eq $Path }) { return }
+    New-Item -ItemType Directory -Force -Path $StartMenuBackupDir | Out-Null
+    $existed = Test-Path -LiteralPath $Path
+    $backup = $null
+    if ($existed) {
+        $backup = Join-Path $StartMenuBackupDir ([guid]::NewGuid().ToString('N') + '.bin')
+        Copy-Item -LiteralPath $Path -Destination $backup -ErrorAction Stop
+    }
+    $entries += [pscustomobject]@{
+        Path = $Path
+        Directory = Split-Path -Parent $Path
+        DirectoryExisted = $DirectoryExisted
+        Existed = $existed
+        Backup = $backup
+    }
+    ConvertTo-Json -InputObject @($entries) -Depth 5 | Set-Content -LiteralPath $StartMenuBackupFile -Encoding UTF8
+}
+
+function Apply-StartMenuLayout($AllUsers, $TemplatePath) {
+    if ([int]$script:WindowsBuild -lt 22621) { throw 'Start menu layout files require Windows 11 build 22621 or newer.' }
+    if ($TemplatePath) {
+        if ([IO.Path]::GetExtension($TemplatePath) -ne '.bin') { throw 'Choose a Start menu .bin layout file.' }
+        $template = [IO.File]::ReadAllBytes($TemplatePath)
+    }
+    else { $template = [Convert]::FromBase64String($script:StartMenuTemplateBase64) }
+    $targets = @(Get-StartMenuTargets $AllUsers)
+    if (-not $targets.Count) { throw 'No Start menu profiles were found.' }
+    foreach ($target in $targets) {
+        $directory = $target.Directory
+        $directoryExisted = Test-Path -LiteralPath $directory
+        if (-not $directoryExisted) { New-Item -ItemType Directory -Force -Path $directory -ErrorAction Stop | Out-Null }
+        $path = Join-Path $directory 'start2.bin'
+        Save-StartMenuFileBackup $path $directoryExisted
+        [IO.File]::WriteAllBytes($path, $template)
+        Write-Log "Updated Start menu layout: $path"
+    }
+}
+
+function Select-StartMenuLayout($AllUsers) {
+    $dialog = New-Object Windows.Forms.OpenFileDialog
+    $dialog.Title = 'Select a Windows 11 Start menu .bin layout'
+    $dialog.Filter = 'Start menu layout (*.bin)|*.bin'
+    try {
+        if ($dialog.ShowDialog($form) -ne [Windows.Forms.DialogResult]::OK) {
+            Write-Log 'Start menu layout selection cancelled.'
+            return
+        }
+        Apply-StartMenuLayout $AllUsers $dialog.FileName
+    }
+    finally { $dialog.Dispose() }
+}
+
+function Remove-CurrentUserCopilot {
+    $packages = @(Get-AppxPackage -Name 'Microsoft.Copilot' -ErrorAction Stop)
+    foreach ($package in $packages) {
+        Remove-AppxPackage -Package $package.PackageFullName -ErrorAction Stop
+        Write-Log 'Removed the Microsoft Copilot app for the current user.'
+    }
+    if (-not $packages.Count) { Write-Log 'Microsoft Copilot app is not installed for the current user.' }
+}
+
 # App IDs and recommendation labels are read from Win11Debloat's MIT-licensed catalog.
 $DebloatCatalogUrl = 'https://raw.githubusercontent.com/Raphire/Win11Debloat/master/Config/Apps.json'
 $DebloatNamesUrl = 'https://raw.githubusercontent.com/Raphire/Win11Debloat/master/Config/Languages/en-US/Apps.json'
@@ -831,6 +1177,7 @@ $script:DebloatLoading = $false
 
 function Test-ProtectedDebloatApp($app) {
     # Never offer Windows runtimes or common development tools for removal.
+    if (@($app.AppIds | Where-Object { $_ -in @('Microsoft.Edge', 'XPFFTQ037JWMHS') }).Count -gt 0) { return $true }
     $identity = "$(if ($app.Name) { $app.Name }) $($app.Description) $($app.AppIds -join ' ')"
     return $identity -match '(?i)(copilot|visual\s*studio|vs\s*code|vscode|c\+\+|vcredist|vc\.?redist|microsoft\.vclibs|microsoft\.ui\.xaml|microsoft\.net\.native|windowsappruntime|\.net\s*(desktop\s*)?runtime|developer\s*mode|dev\s*home|windows\s*terminal|powershell|\bgit\b|\bpython\b|\bnode(js)?\b|programming|development\s*tools)'
 }
@@ -879,8 +1226,9 @@ function Get-DebloatCatalog($CatalogUrl, $NamesUrl, $DataPath) {
     }
     $items = @()
     foreach ($app in $appData.Apps) {
-        if ($app.Recommendation -notin @('safe', 'optional')) { continue }
+        if ($app.Recommendation -notin @('safe', 'optional', 'unsafe')) { continue }
         $ids = @($app.AppId)
+        if ($ids -contains 'Microsoft.Edge' -or $ids -contains 'XPFFTQ037JWMHS') { continue }
         $meta = $null
         foreach ($id in $ids) {
             $property = $nameData.PSObject.Properties[$id]
@@ -900,13 +1248,17 @@ function Get-DebloatCatalog($CatalogUrl, $NamesUrl, $DataPath) {
             AppIds = $ids
             Name = $name
             Description = $description
-            Recommendation = if ($app.Recommendation -eq 'safe') { 'Recommended' } else { 'Optional' }
+            Recommendation = switch ($app.Recommendation) {
+                'safe' { 'Recommended' }
+                'optional' { 'Optional' }
+                'unsafe' { 'Not Recommended' }
+            }
             RemovalMethod = $app.RemovalMethod
             Installed = $isInstalled
-            Selected = [bool]$app.SelectedByDefault
+            Selected = [bool]($app.Recommendation -ne 'unsafe' -and $app.SelectedByDefault)
         }
     }
-    $sortedItems = @($items | Sort-Object @{ Expression = { if ($_.Recommendation -eq 'Recommended') { 0 } else { 1 } } }, Name)
+    $sortedItems = @($items | Sort-Object @{ Expression = { switch ($_.Recommendation) { 'Recommended' { 0 } 'Optional' { 1 } default { 2 } } } }, Name)
     [pscustomobject]@{
         Apps = $sortedItems
         Messages = @($messages)
@@ -934,7 +1286,7 @@ function Update-DebloatStatus {
         if ($row.Visible) { $shownCount++ }
         if ([bool]$row.Cells[0].Value) { $selectedCount++ }
     }
-    $script:DebloatStatus.Text = "$selectedCount selected   |   $shownCount apps shown   |   Recommended + Optional"
+    $script:DebloatStatus.Text = "$selectedCount selected   |   $shownCount apps shown   |   Recommended + Optional + Not Recommended"
 }
 
 function Toggle-DebloatGroup($recommendation) {
@@ -1030,15 +1382,56 @@ function New-RestorePoint {
     catch { Write-Log 'Restore point not created (Windows allows one every 24 hours).' }
 }
 
+function Restore-OptionalWindowsFeatures {
+    if (-not (Test-Path -LiteralPath $OptionalFeatureBackupFile)) { return }
+    $entries = @(Get-Content -LiteralPath $OptionalFeatureBackupFile -Raw | ConvertFrom-Json)
+    foreach ($entry in $entries) {
+        if ($entry.State -eq 'Enabled') {
+            Enable-WindowsOptionalFeature -Online -FeatureName $entry.Name -All -NoRestart -ErrorAction Stop | Out-Null
+        }
+        else {
+            Disable-WindowsOptionalFeature -Online -FeatureName $entry.Name -NoRestart -ErrorAction Stop | Out-Null
+        }
+        Write-Log "Restored optional Windows feature state: $($entry.Name) ($($entry.State))."
+    }
+    Remove-Item -LiteralPath $OptionalFeatureBackupFile -ErrorAction Stop
+}
+
+function Restore-StartMenuFiles {
+    if (-not (Test-Path -LiteralPath $StartMenuBackupFile)) { return }
+    $entries = @(Get-Content -LiteralPath $StartMenuBackupFile -Raw | ConvertFrom-Json)
+    foreach ($entry in $entries) {
+        if ($entry.Existed) {
+            Copy-Item -LiteralPath $entry.Backup -Destination $entry.Path -Force -ErrorAction Stop
+        }
+        elseif (Test-Path -LiteralPath $entry.Path) {
+            Remove-Item -LiteralPath $entry.Path -Force -ErrorAction Stop
+        }
+        if (-not $entry.DirectoryExisted -and (Test-Path -LiteralPath $entry.Directory)) {
+            $directory = Get-Item -LiteralPath $entry.Directory -ErrorAction Stop
+            if (-not (Get-ChildItem -LiteralPath $entry.Directory -Force -ErrorAction Stop | Select-Object -First 1)) {
+                Remove-Item -LiteralPath $entry.Directory -Force -ErrorAction Stop
+            }
+        }
+        Write-Log "Restored Start menu file: $($entry.Path)"
+    }
+    Remove-Item -LiteralPath $StartMenuBackupFile -ErrorAction Stop
+    if (Test-Path -LiteralPath $StartMenuBackupDir) {
+        Remove-Item -LiteralPath $StartMenuBackupDir -Recurse -Force -ErrorAction Stop
+    }
+}
+
 function Undo-Tweaks {
+    if (Test-Path -LiteralPath $DeletedRegistryKeysFile) {
+        foreach ($entry in @(Get-Content -LiteralPath $DeletedRegistryKeysFile -Raw | ConvertFrom-Json)) {
+            Restore-RegKeySnapshot $entry.Hive $entry.Path $entry.Snapshot
+        }
+    }
     foreach ($e in @(Load-Backup)) {
         if ($e.Existed) {
-            if (-not (Test-Path -LiteralPath $e.Path)) { New-Item -Path $e.Path -Force | Out-Null }
-            Set-ItemProperty -Path $e.Path -Name $e.Name -Value $e.Value -Type $e.Type -ErrorAction Stop
+            Write-RegRaw $e.Path $e.Name $e.Value $e.Type
         }
-        elseif (Test-Path -LiteralPath $e.Path) {
-            Remove-ItemProperty -Path $e.Path -Name $e.Name -ErrorAction SilentlyContinue
-        }
+        else { Remove-RegValueRaw $e.Path $e.Name }
     }
     foreach ($path in @((Load-Backup | Where-Object { $_.PSObject.Properties['KeyExisted'] -and -not $_.KeyExisted } | Select-Object -ExpandProperty Path -Unique))) {
         if (Test-Path -LiteralPath $path) {
@@ -1048,14 +1441,16 @@ function Undo-Tweaks {
             }
         }
     }
+    Restore-OptionalWindowsFeatures
+    Restore-StartMenuFiles
     if (Test-Path $PlanFile) { powercfg /setactive (Get-Content $PlanFile -Raw).Trim() }
     [W.U]::SystemParametersInfo(4, 0, [int[]](6, 10, 1), 3) | Out-Null
-    Remove-Item $BackupFile, $PlanFile -ErrorAction SilentlyContinue
+    Remove-Item $BackupFile, $DeletedRegistryKeysFile, $PlanFile -ErrorAction SilentlyContinue
     Write-Log 'Tweaks reverted. Removed apps can be reinstalled from the Microsoft Store.'
 }
 
 $Themes = @{ 'Snow' = 'snow'; 'Rain' = 'rain'; 'Off' = 'off' }
-$PrimaryText = @{ Apps = 'Install selected'; Drivers = 'Install drivers'; Tweaks = 'Apply tweaks'; FiveM = 'Apply FiveM setup'; Debloat = 'Remove selected apps' }
+$PrimaryText = @{ Apps = 'Install selected'; Drivers = 'Install drivers'; Tweaks = 'Apply tweaks'; Debloat = 'Remove selected apps' }
 $H = 900
 
 $form = New-Object FxForm
@@ -1066,13 +1461,15 @@ $form.StartPosition = 'CenterScreen'
 $form.Font = New-Object Drawing.Font('Segoe UI', 9.5)
 $form.Title = 'deep'
 $os = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
+$script:WindowsBuild = [int]$os.CurrentBuildNumber
+$script:RebootRequired = $false
 $osName = if ($os.ProductName) { $os.ProductName } else { 'Windows 10 / 11' }
 $osRelease = if ($os.DisplayVersion) { " ($($os.DisplayVersion))" } elseif ($os.ReleaseId) { " ($($os.ReleaseId))" } else { '' }
 $osArch = if ([Environment]::Is64BitOperatingSystem) { '64-bit' } else { '32-bit' }
 $form.Sub = "$osName$osRelease   |   $osArch   |   v$Version"
 
 $Checks = @{}
-$TabKeys = @{ Apps = @(); Drivers = @(); Tweaks = @(); FiveM = @(); Debloat = @() }
+$TabKeys = @{ Apps = @(); Drivers = @(); Tweaks = @(); Debloat = @() }
 $Flows = @{}
 $NavBtns = @{}
 $ChipBtns = @{}
@@ -1115,7 +1512,7 @@ function Apply-Theme($n) {
 }
 
 $i = 0
-foreach ($n in 'Apps', 'Drivers', 'Tweaks', 'FiveM', 'Debloat') {
+foreach ($n in 'Apps', 'Drivers', 'Tweaks', 'Debloat') {
     if ($n -eq 'Debloat') {
         $f = New-Object Windows.Forms.Panel
         $f.Location = New-Object Drawing.Point(24, 166)
@@ -1176,6 +1573,22 @@ function Add-Row($tab, $key, $title, $desc, $on, $height = 78) {
     $Flows[$tab].Controls.Add($r)
     $Checks[$key] = $r
     $TabKeys[$tab] += $key
+    if ($key -like 'tw:w11:*') {
+        $featureId = $key.Substring(7)
+        $exclusiveGroup = Get-Win11ExclusiveGroup $featureId
+        if ($exclusiveGroup) {
+            $r.Add_CheckedChanged({
+                    if (-not $r.Checked) { return }
+                    foreach ($otherKey in @($TabKeys['Tweaks'])) {
+                        if ($otherKey -eq $key) { continue }
+                        if ($otherKey -notlike 'tw:w11:*') { continue }
+                        if ((Get-Win11ExclusiveGroup $otherKey.Substring(7)) -eq $exclusiveGroup) {
+                            $Checks[$otherKey].Checked = $false
+                        }
+                    }
+                }.GetNewClosure())
+        }
+    }
 }
 
 function Add-TweakSection($title) {
@@ -1248,6 +1661,23 @@ Add-Row 'Tweaks' 'tw:hiddenfiles' 'Show hidden files' 'Shows hidden files and pr
 Add-TweakSection 'Other'
 Add-Row 'Tweaks' 'tw:bravebloat' 'Disable Brave browser extras' 'Turns off Brave AI, Wallet, Rewards, Talk, VPN and News features.' $false 84
 
+Add-TweakSection 'Win11Debloat: additional features'
+foreach ($category in @($script:Win11DebloatFeatures | Select-Object -ExpandProperty Category -Unique | Sort-Object)) {
+    Add-TweakSection $category
+    foreach ($feature in @($script:Win11DebloatFeatures | Where-Object { $_.Category -eq $category })) {
+        $description = $feature.Description
+        if ($feature.Id -eq 'DisableCopilot') {
+            $description += ' Removes the Copilot app for the current user; it can be reinstalled from Microsoft Store and is not restored by Undo Tweaks.'
+        }
+        Add-Row 'Tweaks' "tw:w11:$($feature.Id)" $feature.Label $description $false 84
+    }
+}
+Add-TweakSection 'Optional Windows features & Start menu'
+Add-Row 'Tweaks' 'tw:w11:EnableWSL' 'Enable Windows Subsystem for Linux' 'Enables WSL and Virtual Machine Platform. Windows may request a restart; Undo Tweaks restores their previous states.' $false 84
+Add-Row 'Tweaks' 'tw:w11:EnableSandbox' 'Enable Windows Sandbox' 'Enables Windows Sandbox (available on supported Windows editions). Windows may request a restart; Undo Tweaks restores its previous state.' $false 84
+Add-Row 'Tweaks' 'tw:w11:ResetStartMenu' 'Apply clean Start menu layout' 'Replaces the current Start menu layout with a clean default. Existing layout files are backed up for Undo Tweaks.' $false 84
+Add-Row 'Tweaks' 'tw:w11:CustomStartMenu' 'Choose Start menu layout file' 'Choose a .bin layout file to apply to the current user. Existing layout files are backed up for Undo Tweaks.' $false 84
+
 # Keep the tweak cards in three roomy columns and recompute their widths when
 # the window is resized or maximized. Section headers always span the full row.
 $script:LayoutTweakCards = {
@@ -1263,9 +1693,6 @@ $script:LayoutTweakCards = {
         $tweaks.PerformLayout()
     }
 $form.Add_Resize($script:LayoutTweakCards)
-
-Add-Row 'FiveM' 'fv:install' 'Install FiveM' 'Downloads FiveM from the official site, places it in %LocalAppData%\FiveM and creates shortcuts. The first launch finishes its own setup.' $true 84
-Add-Row 'FiveM' 'fv:config' 'Apply my FiveM settings' 'Copies gta5_settings.xml and fivem.cfg into %AppData%\CitizenFX and writes your graphics card into the settings file automatically. Existing files are backed up first.' $true 84
 
 $restore = New-Object FxRow
 $restore.Title = 'Create a restore point first'
@@ -1314,16 +1741,22 @@ $debloatSelectOptional.Style = 'ghost'
 $debloatSelectOptional.Location = New-Object Drawing.Point(180, 4)
 $debloatSelectOptional.Size = New-Object Drawing.Size(148, 30)
 $debloatPanel.Controls.Add($debloatSelectOptional)
+$debloatSelectNotRecommended = New-Object FxButton
+$debloatSelectNotRecommended.Text = 'Select not recommended'
+$debloatSelectNotRecommended.Style = 'ghost'
+$debloatSelectNotRecommended.Location = New-Object Drawing.Point(336, 4)
+$debloatSelectNotRecommended.Size = New-Object Drawing.Size(184, 30)
+$debloatPanel.Controls.Add($debloatSelectNotRecommended)
 $debloatClear = New-Object FxButton
 $debloatClear.Text = 'Clear selection'
 $debloatClear.Style = 'ghost'
-$debloatClear.Location = New-Object Drawing.Point(336, 4)
-$debloatClear.Size = New-Object Drawing.Size(136, 30)
+$debloatClear.Location = New-Object Drawing.Point(528, 4)
+$debloatClear.Size = New-Object Drawing.Size(112, 30)
 $debloatPanel.Controls.Add($debloatClear)
 $script:DebloatOnlyInstalled = New-Object Windows.Forms.CheckBox
 $script:DebloatOnlyInstalled.Text = 'Only show installed apps'
-$script:DebloatOnlyInstalled.Location = New-Object Drawing.Point(585, 6)
-$script:DebloatOnlyInstalled.Size = New-Object Drawing.Size(205, 28)
+$script:DebloatOnlyInstalled.Location = New-Object Drawing.Point(648, 6)
+$script:DebloatOnlyInstalled.Size = New-Object Drawing.Size(210, 28)
 $script:DebloatOnlyInstalled.Anchor = 'Top,Right'
 $script:DebloatOnlyInstalled.ForeColor = [Drawing.Color]::White
 $script:DebloatOnlyInstalled.BackColor = [Drawing.Color]::Black
@@ -1381,7 +1814,7 @@ $script:DebloatStatus = New-Object Windows.Forms.Label
 $script:DebloatStatus.Location = New-Object Drawing.Point(4, 510)
 $script:DebloatStatus.Size = New-Object Drawing.Size(1180, 30)
 $script:DebloatStatus.ForeColor = [Drawing.Color]::FromArgb(180, 188, 200)
-$script:DebloatStatus.Text = 'Loading Recommended and Optional apps...'
+$script:DebloatStatus.Text = 'Loading Recommended, Optional, and Not Recommended apps...'
 $debloatPanel.Controls.Add($script:DebloatStatus)
 
 $script:DebloatOnlyInstalled.Add_CheckedChanged({ Update-DebloatRows })
@@ -1397,6 +1830,7 @@ $script:DebloatGrid.Add_CurrentCellDirtyStateChanged({
 $script:DebloatGrid.Add_CellValueChanged({ Update-DebloatStatus })
 $debloatSelectRecommended.Add_Click({ Toggle-DebloatGroup 'Recommended' })
 $debloatSelectOptional.Add_Click({ Toggle-DebloatGroup 'Optional' })
+$debloatSelectNotRecommended.Add_Click({ Toggle-DebloatGroup 'Not Recommended' })
 $debloatClear.Add_Click({
         $script:DebloatBatchUpdate = $true
         $script:DebloatGrid.SuspendLayout()
@@ -1415,11 +1849,16 @@ function Load-DebloatUi($result) {
     foreach ($app in $script:DebloatCatalog) {
         $idx = $script:DebloatGrid.Rows.Add($app.Selected, $app.Name, $app.Description, ($app.AppIds -join ', '), $app.Recommendation, $(if ($app.Installed) { 'Yes' } else { 'No' }))
         $script:DebloatGrid.Rows[$idx].Tag = $app
-        if ($app.Recommendation -eq 'Recommended') {
-            $script:DebloatGrid.Rows[$idx].Cells[4].Style.ForeColor = [Drawing.Color]::FromArgb(104, 194, 126)
-        }
-        else {
-            $script:DebloatGrid.Rows[$idx].Cells[4].Style.ForeColor = [Drawing.Color]::FromArgb(246, 190, 62)
+        switch ($app.Recommendation) {
+            'Recommended' {
+                $script:DebloatGrid.Rows[$idx].Cells[4].Style.ForeColor = [Drawing.Color]::FromArgb(104, 194, 126)
+            }
+            'Optional' {
+                $script:DebloatGrid.Rows[$idx].Cells[4].Style.ForeColor = [Drawing.Color]::FromArgb(246, 190, 62)
+            }
+            default {
+                $script:DebloatGrid.Rows[$idx].Cells[4].Style.ForeColor = [Drawing.Color]::FromArgb(230, 120, 120)
+            }
         }
     }
     Update-DebloatRows
@@ -1458,6 +1897,7 @@ function Complete-DebloatCatalogLoad {
         $script:DebloatOnlyInstalled.Enabled = $true
         $debloatSelectRecommended.Enabled = $true
         $debloatSelectOptional.Enabled = $true
+        $debloatSelectNotRecommended.Enabled = $true
         $debloatClear.Enabled = $true
         if ($script:CurrentTab -eq 'Debloat') { $btnGo.Enabled = $true }
     }
@@ -1471,6 +1911,7 @@ function Start-DebloatCatalogLoad {
     $script:DebloatOnlyInstalled.Enabled = $false
     $debloatSelectRecommended.Enabled = $false
     $debloatSelectOptional.Enabled = $false
+    $debloatSelectNotRecommended.Enabled = $false
     $debloatClear.Enabled = $false
     if ($script:CurrentTab -eq 'Debloat') { $btnGo.Enabled = $false }
     try {
@@ -1497,6 +1938,7 @@ function Start-DebloatCatalogLoad {
         $script:DebloatOnlyInstalled.Enabled = $true
         $debloatSelectRecommended.Enabled = $true
         $debloatSelectOptional.Enabled = $true
+        $debloatSelectNotRecommended.Enabled = $true
         $debloatClear.Enabled = $true
         if ($script:CurrentTab -eq 'Debloat') { $btnGo.Enabled = $true }
     }
@@ -1543,6 +1985,7 @@ $btnGo.Add_Click({
             }
         }
         $script:Busy = $true
+        $script:RebootRequired = $false
         $btnGo.Enabled = $false
 
         $steps = @()
@@ -1563,12 +2006,26 @@ $btnGo.Add_Click({
             'Tweaks' {
                 foreach ($k in $selected) {
                     $key = $k.Substring(3)
-                    $steps += @{ Label = "Tweak: $key"; Action = $TweakActions[$key] }
+                    if ($key -eq 'w11:EnableWSL') {
+                        $steps += @{ Label = 'Enable Windows Subsystem for Linux'; Action = { Enable-WSL } }
+                    }
+                    elseif ($key -eq 'w11:EnableSandbox') {
+                        $steps += @{ Label = 'Enable Windows Sandbox'; Action = { Enable-WindowsSandbox } }
+                    }
+                    elseif ($key -eq 'w11:ResetStartMenu') {
+                        $steps += @{ Label = 'Apply clean Start menu layout'; Action = { Apply-StartMenuLayout $false $null } }
+                    }
+                    elseif ($key -eq 'w11:CustomStartMenu') {
+                        $steps += @{ Label = 'Choose Start menu layout file'; Action = { Select-StartMenuLayout $false } }
+                    }
+                    elseif ($key -like 'w11:*') {
+                        $featureId = $key.Substring(4)
+                        $steps += @{ Label = "Win11Debloat: $featureId"; Action = { Invoke-Win11RegistryFeature $featureId }.GetNewClosure() }
+                    }
+                    else {
+                        $steps += @{ Label = "Tweak: $key"; Action = $TweakActions[$key] }
+                    }
                 }
-            }
-            'FiveM' {
-                if ($selected -contains 'fv:install') { $steps += @{ Label = 'Installing FiveM'; Action = { Install-App 'fivem' } } }
-                if ($selected -contains 'fv:config') { $steps += @{ Label = 'Applying FiveM settings'; Action = { Install-FiveMConfig } } }
             }
             'Debloat' {
                 foreach ($app in $selectedDebloat) {
@@ -1618,6 +2075,10 @@ $btnGo.Add_Click({
         if ($needsExplorerRestart -or $tab -eq 'Debloat') {
             $ans = [Windows.Forms.MessageBox]::Show('Restart File Explorer now to apply the changes? Your taskbar will flicker for a second. Signing out also works.', 'deep', 'YesNo', 'Question')
             if ($ans -eq 'Yes') { Stop-Process -Name explorer -Force }
+        }
+        if ($script:RebootRequired) {
+            Write-Log 'A Windows restart is required to complete some selected changes.'
+            [Windows.Forms.MessageBox]::Show('A Windows restart is required to complete some selected changes. Save your work and restart when convenient.', 'deep', 'OK', 'Information') | Out-Null
         }
     })
 
