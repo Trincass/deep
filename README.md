@@ -39,7 +39,7 @@ The Debloat page reads the app catalog and English app descriptions from Win11De
 - Some vendors (AMD, parts of NVIDIA) do not offer stable silent download links. In that case deep opens the official download page.
 - Removing the Xbox apps can break Xbox sign-in for Microsoft Store and Game Pass games.
 - The Debloat app catalog and additional presets are based on [Raphire/Win11Debloat](https://github.com/Raphire/Win11Debloat), licensed under MIT. Not Recommended apps are available but start unselected; Microsoft Edge is never offered for removal.
-- Microsoft Copilot, Bing, Paint, Notepad and Phone Link are managed from Debloat without duplicate app-specific entries in Tweaks. Copilot starts unselected. Microsoft Edge is never offered for removal. Apps removed from Debloat can be reinstalled from Microsoft Store; **Undo tweaks** cannot restore removed apps.
+- Microsoft Copilot, Microsoft 365 Copilot, Bing, Paint, Notepad and Phone Link are managed from Debloat without duplicate app-specific entries in Tweaks. Both Copilot apps start unselected. Microsoft Edge is never offered for removal. Apps removed from Debloat can be reinstalled from Microsoft Store; **Undo tweaks** cannot restore removed apps.
 - The Debloat catalog needs an internet connection the first time it loads, then keeps a local cached copy.
 - The animated theme redraws the window constantly. On a slow PC, choose Off.
 
