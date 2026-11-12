@@ -1458,7 +1458,7 @@ function Undo-Tweaks {
     Write-Log 'Tweaks reverted. Removed apps can be reinstalled from the Microsoft Store.'
 }
 
-$Themes = @{ 'Snow' = 'snow'; 'Rain' = 'rain'; 'Off' = 'off' }
+$Themes = @{ 'Snow' = 'snow'; 'Off' = 'off' }
 $PrimaryText = @{ Apps = 'Install selected'; Drivers = 'Install drivers'; Tweaks = 'Apply tweaks'; Debloat = 'Remove selected apps' }
 $H = 900
 
@@ -1538,17 +1538,19 @@ foreach ($n in 'Apps', 'Drivers', 'Tweaks', 'Debloat') {
         $i++
         continue
     }
-    $f = New-Object Windows.Forms.FlowLayoutPanel
+    if ($n -eq 'Tweaks') {
+        $f = New-Object Windows.Forms.Panel
+        $f.AutoScroll = $true
+    }
+    else {
+        $f = New-Object Windows.Forms.FlowLayoutPanel
+        $f.FlowDirection = 'TopDown'
+        $f.WrapContents = $false
+        $f.AutoScroll = $true
+    }
     $f.Location = New-Object Drawing.Point(24, 166)
     $f.Size = New-Object Drawing.Size(1192, 548)
     $f.Anchor = 'Top,Bottom,Left,Right'
-    $f.FlowDirection = 'TopDown'
-    $f.WrapContents = $false
-    if ($n -eq 'Tweaks') {
-        $f.FlowDirection = 'LeftToRight'
-        $f.WrapContents = $true
-    }
-    $f.AutoScroll = $true
     $f.BackColor = [Drawing.Color]::Transparent
     $f.Visible = $false
     $form.Controls.Add($f)
@@ -1562,8 +1564,8 @@ foreach ($n in 'Apps', 'Drivers', 'Tweaks', 'Debloat') {
     $i++
 }
 
-$cx = $form.ClientSize.Width - 24 - (64 + 8 + 64 + 8 + 48)
-foreach ($t in @(@('Snow', 64), @('Rain', 64), @('Off', 48))) {
+$cx = $form.ClientSize.Width - 24 - (64 + 8 + 48)
+foreach ($t in @(@('Snow', 64), @('Off', 48))) {
     $c = New-Btn $t[0] 'chip' $cx 36 $t[1] 28 'Top,Right'
     $name = $t[0]
     $c.Add_Click({ Apply-Theme $name }.GetNewClosure())
@@ -1689,21 +1691,55 @@ Add-Row 'Tweaks' 'tw:w11:EnableSandbox' 'Enable Windows Sandbox' 'Enables Window
 Add-Row 'Tweaks' 'tw:w11:ResetStartMenu' 'Apply clean Start menu layout' 'Replaces the current Start menu layout with a clean default. Existing layout files are backed up for Undo Tweaks.' $false 84
 Add-Row 'Tweaks' 'tw:w11:CustomStartMenu' 'Choose Start menu layout file' 'Choose a .bin layout file to apply to the current user. Existing layout files are backed up for Undo Tweaks.' $false 84
 
-# Keep the tweak cards in three roomy columns and recompute their widths when
-# the window is resized or maximized. Section headers always span the full row.
+# Lay out tweak cards explicitly so maximize/restore cannot leave horizontal
+# overflow or stale FlowLayoutPanel positions behind.
 $script:LayoutTweakCards = {
         if (-not $Flows['Tweaks']) { return }
         $tweaks = $Flows['Tweaks']
-        $available = [Math]::Max(320, $tweaks.ClientSize.Width - 28)
-        $columns = [Math]::Min(3, [Math]::Max(1, [Math]::Floor(($available + 10) / 370)))
-        $cardWidth = [Math]::Max(320, [Math]::Floor(($available - (($columns - 1) * 10)) / $columns))
-        foreach ($control in $tweaks.Controls) {
-            if ($control -is [FxRow]) { $control.Width = $cardWidth }
-            elseif ($control -is [Windows.Forms.Label]) { $control.Width = $available }
+        $scrollTop = -$tweaks.AutoScrollPosition.Y
+        $available = [Math]::Max(320, $tweaks.ClientSize.Width - [Windows.Forms.SystemInformation]::VerticalScrollBarWidth - 32)
+        $gap = 12
+        $columns = [Math]::Min(3, [Math]::Max(1, [Math]::Floor(($available + $gap) / 340)))
+        $cardWidth = [Math]::Max(280, [Math]::Floor(($available - (($columns - 1) * $gap)) / $columns))
+        $x = 12
+        $y = 12
+        $column = 0
+        $rowHeight = 0
+        $tweaks.SuspendLayout()
+        try {
+            foreach ($control in $tweaks.Controls) {
+                if ($control -is [Windows.Forms.Label]) {
+                    if ($column -gt 0) {
+                        $y += $rowHeight + $gap
+                        $column = 0
+                        $rowHeight = 0
+                    }
+                    $control.Location = New-Object Drawing.Point($x, $y)
+                    $control.Size = New-Object Drawing.Size($available, $control.Height)
+                    $y += $control.Height + $gap
+                }
+                elseif ($control -is [FxRow]) {
+                    $control.Location = New-Object Drawing.Point(($x + $column * ($cardWidth + $gap)), $y)
+                    $control.Size = New-Object Drawing.Size($cardWidth, $control.Height)
+                    $rowHeight = [Math]::Max($rowHeight, $control.Height)
+                    $column++
+                    if ($column -ge $columns) {
+                        $y += $rowHeight + $gap
+                        $column = 0
+                        $rowHeight = 0
+                    }
+                }
+            }
+            if ($column -gt 0) { $y += $rowHeight + $gap }
+            $tweaks.AutoScrollMinSize = New-Object Drawing.Size(0, ($y + 12))
+            $maxScroll = [Math]::Max(0, $tweaks.AutoScrollMinSize.Height - $tweaks.ClientSize.Height)
+            $tweaks.AutoScrollPosition = New-Object Drawing.Point(0, [Math]::Min($scrollTop, $maxScroll))
         }
-        $tweaks.PerformLayout()
+        finally {
+            $tweaks.ResumeLayout($true)
+        }
     }
-$form.Add_Resize($script:LayoutTweakCards)
+$Flows['Tweaks'].Add_Resize($script:LayoutTweakCards)
 
 $restore = New-Object FxRow
 $restore.Title = 'Create a restore point first'
