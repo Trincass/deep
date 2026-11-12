@@ -1165,7 +1165,7 @@ $script:DebloatLoading = $false
 function Test-ProtectedDebloatApp($app) {
     # Never offer Windows runtimes or common development tools for removal.
     if (@($app.AppIds | Where-Object { $_ -in @('Microsoft.Edge', 'XPFFTQ037JWMHS') }).Count -gt 0) { return $true }
-    if (@($app.AppIds | Where-Object { $_ -eq 'XP9CXNGPPJ97XX' }).Count -gt 0) { return $false }
+    if (@($app.AppIds | Where-Object { $_ -in @('XP9CXNGPPJ97XX', 'Microsoft.MicrosoftOfficeHub') }).Count -gt 0) { return $false }
     $identity = "$(if ($app.Name) { $app.Name }) $($app.Description) $($app.AppIds -join ' ')"
     return $identity -match '(?i)(visual\s*studio|vs\s*code|vscode|c\+\+|vcredist|vc\.?redist|microsoft\.vclibs|microsoft\.ui\.xaml|microsoft\.net\.native|windowsappruntime|\.net\s*(desktop\s*)?runtime|developer\s*mode|dev\s*home|windows\s*terminal|powershell|\bgit\b|\bpython\b|\bnode(js)?\b|programming|development\s*tools)'
 }
@@ -1243,7 +1243,7 @@ function Get-DebloatCatalog($CatalogUrl, $NamesUrl, $DataPath) {
             }
             RemovalMethod = $app.RemovalMethod
             Installed = $isInstalled
-            Selected = [bool]($app.Recommendation -ne 'unsafe' -and $app.SelectedByDefault -and $ids -notcontains 'XP9CXNGPPJ97XX')
+            Selected = [bool]($app.Recommendation -ne 'unsafe' -and $app.SelectedByDefault -and $ids -notcontains 'XP9CXNGPPJ97XX' -and $ids -notcontains 'Microsoft.MicrosoftOfficeHub')
         }
     }
     $sortedItems = @($items | Sort-Object @{ Expression = { switch ($_.Recommendation) { 'Recommended' { 0 } 'Optional' { 1 } default { 2 } } } }, Name)
