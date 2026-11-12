@@ -37,10 +37,13 @@ Each page applies only its own selection. The button at the bottom right acts on
 
 ```
 main branch:
+  DeepLauncher.cs
   deep-setup.exe
   setup.ps1
   README.md
 ```
+
+`DeepLauncher.cs` is the C# source for the executable launcher. It embeds and runs `setup.ps1`.
 
 The Debloat page reads the app catalog and English app descriptions from Win11Debloat and saves a local copy for later use.
 
