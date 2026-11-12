@@ -1,4 +1,4 @@
-$Version = '1.9.0'
+$Version = '1.10.0'
 $Repo = 'Trincass/deep'
 $Branch = 'main'
 $Raw = "https://raw.githubusercontent.com/$Repo/$Branch/setup.ps1"
@@ -39,6 +39,18 @@ using System.Windows.Forms;
 
 public static class FxUtil
 {
+    [DllImport("uxtheme.dll", EntryPoint = "#135")]
+    static extern int SetPreferredAppMode(int mode);
+    static bool darkModeInitialized = false;
+
+    public static void EnableDarkMode()
+    {
+        if (darkModeInitialized) return;
+        try { SetPreferredAppMode(1); }
+        catch (EntryPointNotFoundException) { }
+        darkModeInitialized = true;
+    }
+
     public static Font TitleFont = new Font("Segoe UI Semibold", 11.5f);
     public static Font DescFont = new Font("Segoe UI", 9.5f);
     public static Font BtnFont = new Font("Segoe UI Semibold", 9.5f);
@@ -80,6 +92,7 @@ public class FxForm : Form
 
     public FxForm()
     {
+        FxUtil.EnableDarkMode();
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         BackColor = Color.Black;
         ForeColor = Color.White;
@@ -2115,7 +2128,6 @@ $form.Add_Shown({
         & $script:LayoutTweakCards
         Apply-Theme 'Snow'
         Show-Tab 'Apps'
-        Write-Log "deep v$Version ready. Only the page you are on is applied."
         Start-DebloatCatalogLoad
     })
 
