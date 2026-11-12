@@ -865,11 +865,6 @@ $TweakActions = @{
         Set-Reg 'HKCU:\Software\Microsoft\GameBar' 'ShowStartupPanel' 0
         Set-Reg 'HKCU:\Software\Microsoft\GameBar' 'GamePanelStartupTipIndex' 3
     }
-    bing = {
-        Set-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search' 'DisableWebSearch' 1
-        Set-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Search' 'BingSearchEnabled' 0
-        Set-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Search' 'CortanaConsent' 0
-    }
     transparency = { Set-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' 'EnableTransparency' 0 }
     animations = {
         Set-Reg 'HKCU:\Control Panel\Desktop\WindowMetrics' 'MinAnimate' '0' 'String'
@@ -992,6 +987,8 @@ finally {
     $featureGzip.Dispose()
     $featureStream.Dispose()
 }
+$overlappingDebloatFeatureIds = @('DisableCopilot', 'DisableSettings365Ads', 'DisablePaintAI', 'DisableNotepadAI', 'DisableStartPhoneLink')
+$script:Win11DebloatFeatures = @($script:Win11DebloatFeatures | Where-Object { $_.Id -notin $overlappingDebloatFeatureIds })
 $script:Win11DebloatFeatureById = @{}
 foreach ($feature in $script:Win11DebloatFeatures) { $script:Win11DebloatFeatureById[$feature.Id] = $feature }
 
@@ -1030,7 +1027,6 @@ function Invoke-Win11RegistryFeature($FeatureId) {
         $script:RebootRequired = $true
         Write-Log "$($feature.Label) may require a Windows restart."
     }
-    if ($FeatureId -eq 'DisableCopilot') { Remove-CurrentUserCopilot }
 }
 
 function Get-Win11ExclusiveGroup($FeatureId) {
@@ -1151,15 +1147,6 @@ function Select-StartMenuLayout($AllUsers) {
     finally { $dialog.Dispose() }
 }
 
-function Remove-CurrentUserCopilot {
-    $packages = @(Get-AppxPackage -Name 'Microsoft.Copilot' -ErrorAction Stop)
-    foreach ($package in $packages) {
-        Remove-AppxPackage -Package $package.PackageFullName -ErrorAction Stop
-        Write-Log 'Removed the Microsoft Copilot app for the current user.'
-    }
-    if (-not $packages.Count) { Write-Log 'Microsoft Copilot app is not installed for the current user.' }
-}
-
 # App IDs and recommendation labels are read from Win11Debloat's MIT-licensed catalog.
 $DebloatCatalogUrl = 'https://raw.githubusercontent.com/Raphire/Win11Debloat/master/Config/Apps.json'
 $DebloatNamesUrl = 'https://raw.githubusercontent.com/Raphire/Win11Debloat/master/Config/Languages/en-US/Apps.json'
@@ -1178,8 +1165,9 @@ $script:DebloatLoading = $false
 function Test-ProtectedDebloatApp($app) {
     # Never offer Windows runtimes or common development tools for removal.
     if (@($app.AppIds | Where-Object { $_ -in @('Microsoft.Edge', 'XPFFTQ037JWMHS') }).Count -gt 0) { return $true }
+    if (@($app.AppIds | Where-Object { $_ -eq 'XP9CXNGPPJ97XX' }).Count -gt 0) { return $false }
     $identity = "$(if ($app.Name) { $app.Name }) $($app.Description) $($app.AppIds -join ' ')"
-    return $identity -match '(?i)(copilot|visual\s*studio|vs\s*code|vscode|c\+\+|vcredist|vc\.?redist|microsoft\.vclibs|microsoft\.ui\.xaml|microsoft\.net\.native|windowsappruntime|\.net\s*(desktop\s*)?runtime|developer\s*mode|dev\s*home|windows\s*terminal|powershell|\bgit\b|\bpython\b|\bnode(js)?\b|programming|development\s*tools)'
+    return $identity -match '(?i)(visual\s*studio|vs\s*code|vscode|c\+\+|vcredist|vc\.?redist|microsoft\.vclibs|microsoft\.ui\.xaml|microsoft\.net\.native|windowsappruntime|\.net\s*(desktop\s*)?runtime|developer\s*mode|dev\s*home|windows\s*terminal|powershell|\bgit\b|\bpython\b|\bnode(js)?\b|programming|development\s*tools)'
 }
 
 function Get-DebloatCatalog($CatalogUrl, $NamesUrl, $DataPath) {
@@ -1255,7 +1243,7 @@ function Get-DebloatCatalog($CatalogUrl, $NamesUrl, $DataPath) {
             }
             RemovalMethod = $app.RemovalMethod
             Installed = $isInstalled
-            Selected = [bool]($app.Recommendation -ne 'unsafe' -and $app.SelectedByDefault)
+            Selected = [bool]($app.Recommendation -ne 'unsafe' -and $app.SelectedByDefault -and $ids -notcontains 'XP9CXNGPPJ97XX')
         }
     }
     $sortedItems = @($items | Sort-Object @{ Expression = { switch ($_.Recommendation) { 'Recommended' { 0 } 'Optional' { 1 } default { 2 } } } }, Name)
@@ -1642,7 +1630,6 @@ Add-Row 'Tweaks' 'tw:dvr' 'Disable game and screen recording' 'Turns off Xbox Ga
 Add-Row 'Tweaks' 'tw:gamebar' 'Disable Game Bar integration' 'Stops Game Bar popups for games and controllers.' $false 84
 
 Add-TweakSection 'Start & search'
-Add-Row 'Tweaks' 'tw:bing' 'Disable Bing and Copilot in search' 'Removes web results and Copilot integration from Windows Search.' $false 84
 
 Add-TweakSection 'Appearance'
 Add-Row 'Tweaks' 'tw:dark' 'Dark theme' 'Switches Windows and apps to dark mode.' $true
@@ -1665,11 +1652,7 @@ Add-TweakSection 'Win11Debloat: additional features'
 foreach ($category in @($script:Win11DebloatFeatures | Select-Object -ExpandProperty Category -Unique | Sort-Object)) {
     Add-TweakSection $category
     foreach ($feature in @($script:Win11DebloatFeatures | Where-Object { $_.Category -eq $category })) {
-        $description = $feature.Description
-        if ($feature.Id -eq 'DisableCopilot') {
-            $description += ' Removes the Copilot app for the current user; it can be reinstalled from Microsoft Store and is not restored by Undo Tweaks.'
-        }
-        Add-Row 'Tweaks' "tw:w11:$($feature.Id)" $feature.Label $description $false 84
+        Add-Row 'Tweaks' "tw:w11:$($feature.Id)" $feature.Label $feature.Description $false 84
     }
 }
 Add-TweakSection 'Optional Windows features & Start menu'
